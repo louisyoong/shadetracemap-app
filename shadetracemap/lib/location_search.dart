@@ -124,7 +124,10 @@ class LocationSearchField extends StatelessWidget {
         ? const Color(0xFF9AA0A8)
         : const Color(0xFF6B7078);
     return AnimatedBuilder(
-      animation: controller,
+      // Merge in textController so the clear button appears/disappears on
+      // every keystroke, not just when the controller's own notifyListeners
+      // fires (which only happens once the debounced search resolves).
+      animation: Listenable.merge([controller, controller.textController]),
       builder: (context, _) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -158,9 +161,14 @@ class LocationSearchField extends StatelessWidget {
                         hintText: hintText,
                         hintStyle: TextStyle(color: mutedColor, fontSize: 13.5),
                         filled: false,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 12,
+                        contentPadding: EdgeInsets.fromLTRB(
+                          14,
+                          12,
+                          controller.searching ||
+                                  controller.textController.text.isNotEmpty
+                              ? 34
+                              : 14,
+                          12,
                         ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(11),
@@ -191,6 +199,20 @@ class LocationSearchField extends StatelessWidget {
                             strokeWidth: 1.8,
                             color: mutedColor,
                           ),
+                        ),
+                      )
+                    else if (controller.textController.text.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 4),
+                        child: IconButton(
+                          onPressed: controller.clear,
+                          icon: Icon(Icons.close, size: 16, color: mutedColor),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: 32,
+                            minHeight: 32,
+                          ),
+                          splashRadius: 16,
                         ),
                       ),
                   ],
