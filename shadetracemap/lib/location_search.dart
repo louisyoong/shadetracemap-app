@@ -24,9 +24,15 @@ class LocationSearchController extends ChangeNotifier {
     searching = true;
     notifyListeners();
     try {
-      final uri = Uri.parse(
-        'https://nominatim.openstreetmap.org/search',
-      ).replace(queryParameters: {'format': 'json', 'limit': '5', 'q': q});
+      final uri = Uri.parse('https://nominatim.openstreetmap.org/search')
+          .replace(
+            queryParameters: {
+              'format': 'json',
+              'limit': '5',
+              'q': q,
+              'accept-language': 'en',
+            },
+          );
       final res = await http.get(
         uri,
         headers: {

@@ -1051,26 +1051,25 @@ class _BottomBar extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 10),
           SizedBox(
-            height: 28,
+            height: 34,
             child: Stack(
               alignment: Alignment.center,
               children: [
                 Container(
-                  height: 6,
+                  height: 16,
                   // Flutter insets a Slider's track by
-                  // max(overlayRadius, thumbRadius) on each side (16px here,
+                  // max(overlayRadius, thumbRadius) on each side (15px here,
                   // from the overlayShape below) so the thumb can travel
                   // edge-to-edge without clipping. This custom gradient
                   // "track" drawn underneath the (invisible) real one has to
                   // use the same inset, or the thumb visibly drifts away
                   // from the gradient's own color stops as you drag toward
                   // either end.
-                  margin: const EdgeInsets.symmetric(horizontal: 16),
+                  margin: const EdgeInsets.symmetric(horizontal: 15),
                   decoration: BoxDecoration(
                     gradient: buildDayGradient(sunrise, sunset, isDark: isDark),
-                    borderRadius: BorderRadius.circular(3),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                 ),
                 SliderTheme(
@@ -1080,11 +1079,11 @@ class _BottomBar extends StatelessWidget {
                     inactiveTrackColor: Colors.transparent,
                     thumbColor: Colors.white,
                     thumbShape: const RoundSliderThumbShape(
-                      enabledThumbRadius: 7.5,
+                      enabledThumbRadius: 10,
                       elevation: 1,
                     ),
                     overlayShape: const RoundSliderOverlayShape(
-                      overlayRadius: 16,
+                      overlayRadius: 15,
                     ),
                   ),
                   child: Slider(
@@ -1101,7 +1100,7 @@ class _BottomBar extends StatelessWidget {
             formatSunTimes(sunrise, sunset),
             style: TextStyle(color: onPanelMuted, fontSize: 10.5),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           Row(
             children: [
               Text(
