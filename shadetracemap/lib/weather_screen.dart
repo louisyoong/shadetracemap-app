@@ -163,7 +163,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
                   style: TextStyle(
                     color: textColor,
                     fontSize: 96,
-                    fontWeight: FontWeight.w200,
+                    fontWeight: FontWeight.w800,
                     height: 1,
                   ),
                 ),
@@ -174,6 +174,16 @@ class _WeatherScreenState extends State<WeatherScreen> {
                     color: textColor,
                     fontSize: 17,
                     fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Feels like ${w.feelsLike.round()}°  •  '
+                  'H:${w.temperatureMax.round()}° L:${w.temperatureMin.round()}°',
+                  style: TextStyle(
+                    color: textMuted,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
@@ -193,44 +203,91 @@ class _WeatherScreenState extends State<WeatherScreen> {
             tintOpacity: stripOpacity,
             blurSigma: 20,
             padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
-            child: Row(
+            child: Column(
               children: [
-                Expanded(
-                  child: _StripItem(
-                    icon: Icons.wb_twilight,
-                    label: 'SUNRISE',
-                    value: _formatTime(w.sunrise),
-                    textColor: textColor,
-                    textMuted: textMuted,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _StripItem(
+                        icon: Icons.wb_twilight,
+                        label: 'SUNRISE',
+                        value: _formatTime(w.sunrise),
+                        textColor: textColor,
+                        textMuted: textMuted,
+                      ),
+                    ),
+                    Expanded(
+                      child: _StripItem(
+                        icon: Icons.nights_stay_outlined,
+                        label: 'SUNSET',
+                        value: _formatTime(w.sunset),
+                        textColor: textColor,
+                        textMuted: textMuted,
+                      ),
+                    ),
+                    Expanded(
+                      child: _StripItem(
+                        icon: Icons.timelapse,
+                        label: 'SUNSHINE',
+                        value: _formatDuration(w.sunshineDuration),
+                        textColor: textColor,
+                        textMuted: textMuted,
+                      ),
+                    ),
+                    Expanded(
+                      child: _StripItem(
+                        icon: Icons.wb_sunny,
+                        label: 'UV INDEX',
+                        value: w.uvIndexMax.toStringAsFixed(1),
+                        textColor: textColor,
+                        textMuted: textMuted,
+                        valueColor: Color(uvIndexCategory(w.uvIndexMax).color),
+                      ),
+                    ),
+                  ],
                 ),
-                Expanded(
-                  child: _StripItem(
-                    icon: Icons.nights_stay_outlined,
-                    label: 'SUNSET',
-                    value: _formatTime(w.sunset),
-                    textColor: textColor,
-                    textMuted: textMuted,
-                  ),
-                ),
-                Expanded(
-                  child: _StripItem(
-                    icon: Icons.timelapse,
-                    label: 'SUNSHINE',
-                    value: _formatDuration(w.sunshineDuration),
-                    textColor: textColor,
-                    textMuted: textMuted,
-                  ),
-                ),
-                Expanded(
-                  child: _StripItem(
-                    icon: Icons.wb_sunny,
-                    label: 'UV INDEX',
-                    value: w.uvIndexMax.toStringAsFixed(1),
-                    textColor: textColor,
-                    textMuted: textMuted,
-                    valueColor: Color(uvIndexCategory(w.uvIndexMax).color),
-                  ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _StripItem(
+                        icon: Icons.thermostat,
+                        label: 'FEELS LIKE',
+                        value: '${w.feelsLike.round()}°',
+                        textColor: textColor,
+                        textMuted: textMuted,
+                      ),
+                    ),
+                    Expanded(
+                      child: _StripItem(
+                        icon: Icons.arrow_upward,
+                        label: 'HIGH / LOW',
+                        value:
+                            '${w.temperatureMax.round()}° / '
+                            '${w.temperatureMin.round()}°',
+                        textColor: textColor,
+                        textMuted: textMuted,
+                      ),
+                    ),
+                    Expanded(
+                      child: _StripItem(
+                        icon: Icons.water_drop_outlined,
+                        label: 'HUMIDITY',
+                        value: '${w.humidity}%',
+                        textColor: textColor,
+                        textMuted: textMuted,
+                      ),
+                    ),
+                    Expanded(
+                      child: _StripItem(
+                        icon: Icons.air,
+                        label: 'WIND',
+                        value: '${w.windSpeed.round()} km/h',
+                        textColor: textColor,
+                        textMuted: textMuted,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

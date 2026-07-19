@@ -21,6 +21,16 @@ const _centerLat = 3.1412;
 const _initialUtcOffset = 8; // Asia/Kuala_Lumpur, UTC+8 year-round (no DST)
 const _buildingLayerId = 'building-3d'; // native layer in the "liberty" style
 
+// Free, no-API-key satellite imagery (Esri World Imagery XYZ tiles), added
+// as a raster layer under the buildings/shadows so toggling it on swaps the
+// vector base map for satellite photography without disturbing the 3D
+// buildings or shadow overlay rendered above it.
+const _satelliteSourceId = 'satellite-source';
+const _satelliteLayerId = 'satellite-layer';
+const _satelliteTileUrl =
+    'https://server.arcgisonline.com/ArcGIS/rest/services/'
+    'World_Imagery/MapServer/tile/{z}/{y}/{x}';
+
 class ShadeMapScreen extends StatefulWidget {
   const ShadeMapScreen({super.key});
 
@@ -33,6 +43,8 @@ class _ShadeMapScreenState extends State<ShadeMapScreen> {
   bool _mapLoaded = false;
   bool _shadowsReady = false;
   int _recomputeGen = 0;
+  bool _recomputeBusy = false;
+  bool _recomputeQueued = false;
 
   late DateTime _currentInstant;
   String _lastSunTimesKey = '';
@@ -63,6 +75,7 @@ class _ShadeMapScreenState extends State<ShadeMapScreen> {
   double _liveTilt = 58;
   bool _is3D = true;
   bool _showInfo = false;
+  bool _satellite = false;
 
   @override
   void initState() {
@@ -123,6 +136,34 @@ class _ShadeMapScreenState extends State<ShadeMapScreen> {
       ),
       belowLayerId: _buildingLayerId,
     );
+  }
+
+  // Added once, below the shadow overlay, so it starts out hidden (behind
+  // the vector base map) and toggling satellite mode just flips its
+  // visibility rather than tearing the layer down and rebuilding it.
+  Future<void> _ensureSatelliteLayer(MapLibreMapController controller) async {
+    await controller.addSource(
+      _satelliteSourceId,
+      const RasterSourceProperties(
+        tiles: [_satelliteTileUrl],
+        tileSize: 256,
+        attribution: 'Esri, Maxar, Earthstar Geographics',
+      ),
+    );
+    await controller.addLayer(
+      _satelliteSourceId,
+      _satelliteLayerId,
+      const RasterLayerProperties(),
+      belowLayerId: 'shadow-soft-layer',
+    );
+    await controller.setLayerVisibility(_satelliteLayerId, _satellite);
+  }
+
+  void _toggleSatellite() {
+    final controller = _controller;
+    if (controller == null) return;
+    setState(() => _satellite = !_satellite);
+    controller.setLayerVisibility(_satelliteLayerId, _satellite);
   }
 
   // There is no maplibre_gl equivalent of the JS SDK's map.setLight(): the
@@ -340,6 +381,30 @@ class _ShadeMapScreenState extends State<ShadeMapScreen> {
     });
   }
 
+  // Fast slider drags (or play-mode ticks) can fire far more often than a
+  // single recompute's native query round-trip completes. Awaiting each
+  // one serially would make dragging feel laggy, while firing them all
+  // concurrently floods the platform channel with overlapping queries -
+  // this coalesces a burst down to "at most one recompute in flight, plus
+  // one more queued run once it's free" so only the latest time actually
+  // gets drawn.
+  Future<void> _scheduleRecompute() async {
+    if (_recomputeBusy) {
+      _recomputeQueued = true;
+      return;
+    }
+    _recomputeBusy = true;
+    try {
+      await _recompute();
+      while (_recomputeQueued) {
+        _recomputeQueued = false;
+        await _recompute();
+      }
+    } finally {
+      _recomputeBusy = false;
+    }
+  }
+
   void _onWallClockChanged() {
     final parts = _dateStr.split('-').map(int.parse).toList();
     final instantMs = instantFromLocalFields(
@@ -353,7 +418,7 @@ class _ShadeMapScreenState extends State<ShadeMapScreen> {
       instantMs,
       isUtc: true,
     );
-    _recompute();
+    _scheduleRecompute();
   }
 
   Future<void> _onStyleLoaded() async {
@@ -362,6 +427,7 @@ class _ShadeMapScreenState extends State<ShadeMapScreen> {
     _mapLoaded = true;
 
     await _ensureShadowLayers(controller, _opacity);
+    await _ensureSatelliteLayer(controller);
     _shadowsReady = true;
     if (mounted) {
       setState(() {
@@ -371,8 +437,8 @@ class _ShadeMapScreenState extends State<ShadeMapScreen> {
     }
     await _recompute();
     // Catch any tiles that were still loading right at style-load time.
-    Future.delayed(const Duration(milliseconds: 800), _recompute);
-    Future.delayed(const Duration(milliseconds: 2000), _recompute);
+    Future.delayed(const Duration(milliseconds: 800), _scheduleRecompute);
+    Future.delayed(const Duration(milliseconds: 2000), _scheduleRecompute);
 
     // Workaround for a maplibre_gl iOS cold-launch crash (plugin issue
     // #819): setting tilt/bearing directly in initialCameraPosition races
@@ -525,7 +591,7 @@ class _ShadeMapScreenState extends State<ShadeMapScreen> {
           compassEnabled: false,
           onMapCreated: (c) => _controller = c,
           onStyleLoadedCallback: _onStyleLoaded,
-          onCameraIdle: _recompute,
+          onCameraIdle: _scheduleRecompute,
           onCameraMove: _onCameraMove,
         ),
         IgnorePointer(
@@ -606,6 +672,8 @@ class _ShadeMapScreenState extends State<ShadeMapScreen> {
             onInfoTap: () => setState(() => _showInfo = !_showInfo),
             is3D: _is3D,
             onDimTap: _toggleDimension,
+            satellite: _satellite,
+            onSatelliteTap: _toggleSatellite,
           ),
         ),
       ],
@@ -769,6 +837,8 @@ class _CornerControls extends StatelessWidget {
     required this.onInfoTap,
     required this.is3D,
     required this.onDimTap,
+    required this.satellite,
+    required this.onSatelliteTap,
   });
 
   final double bearing;
@@ -777,6 +847,8 @@ class _CornerControls extends StatelessWidget {
   final VoidCallback onInfoTap;
   final bool is3D;
   final VoidCallback onDimTap;
+  final bool satellite;
+  final VoidCallback onSatelliteTap;
 
   @override
   Widget build(BuildContext context) {
@@ -865,6 +937,19 @@ class _CornerControls extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.3,
                 ),
+              ),
+            ),
+            divider,
+            _CornerButton(
+              onTap: onSatelliteTap,
+              child: Icon(
+                Icons.satellite_alt,
+                size: 18,
+                color: satellite
+                    ? (isDark
+                          ? const Color(0xFFFFD580)
+                          : const Color(0xFF9C5300))
+                    : iconColor,
               ),
             ),
           ],

@@ -12,6 +12,11 @@ class WeatherData {
     required this.uvIndexMax,
     required this.temperature,
     required this.weatherCode,
+    required this.feelsLike,
+    required this.humidity,
+    required this.windSpeed,
+    required this.temperatureMax,
+    required this.temperatureMin,
   });
 
   final DateTime? sunrise;
@@ -20,6 +25,11 @@ class WeatherData {
   final double uvIndexMax;
   final double temperature;
   final int weatherCode;
+  final double feelsLike;
+  final int humidity;
+  final double windSpeed;
+  final double temperatureMax;
+  final double temperatureMin;
 }
 
 /// `timezone=auto` makes Open-Meteo return every timestamp as that
@@ -31,8 +41,12 @@ Future<WeatherData> fetchWeather(double lat, double lon) async {
     queryParameters: {
       'latitude': '$lat',
       'longitude': '$lon',
-      'daily': 'sunrise,sunset,sunshine_duration,uv_index_max',
-      'current': 'temperature_2m,weather_code',
+      'daily':
+          'sunrise,sunset,sunshine_duration,uv_index_max,'
+          'temperature_2m_max,temperature_2m_min',
+      'current':
+          'temperature_2m,weather_code,apparent_temperature,'
+          'relative_humidity_2m,wind_speed_10m',
       'forecast_days': '1',
       'timezone': 'auto',
     },
@@ -66,6 +80,11 @@ Future<WeatherData> fetchWeather(double lat, double lon) async {
     uvIndexMax: firstDouble(daily, 'uv_index_max'),
     temperature: (current['temperature_2m'] as num?)?.toDouble() ?? 0,
     weatherCode: (current['weather_code'] as num?)?.toInt() ?? 0,
+    feelsLike: (current['apparent_temperature'] as num?)?.toDouble() ?? 0,
+    humidity: (current['relative_humidity_2m'] as num?)?.toInt() ?? 0,
+    windSpeed: (current['wind_speed_10m'] as num?)?.toDouble() ?? 0,
+    temperatureMax: firstDouble(daily, 'temperature_2m_max'),
+    temperatureMin: firstDouble(daily, 'temperature_2m_min'),
   );
 }
 

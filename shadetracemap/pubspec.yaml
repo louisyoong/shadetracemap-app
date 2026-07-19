@@ -36,6 +36,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   maplibre_gl: ^0.26.2
   http: ^1.6.0
+  shared_preferences: ^2.5.5
 
 dev_dependencies:
   flutter_test:
@@ -62,6 +63,7 @@ flutter:
 
   assets:
     - assets/icon/logo.png
+    - assets/icon/onboadingtwo.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:
