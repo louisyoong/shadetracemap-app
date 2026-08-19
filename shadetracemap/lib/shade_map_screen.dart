@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
+import 'device_location.dart';
 import 'glass_panel.dart';
 import 'location_search.dart';
 import 'sun_math.dart';
@@ -76,6 +77,7 @@ class _ShadeMapScreenState extends State<ShadeMapScreen> {
   bool _is3D = true;
   bool _showInfo = false;
   bool _satellite = false;
+  bool _locating = false;
 
   @override
   void initState() {
@@ -569,6 +571,56 @@ class _ShadeMapScreenState extends State<ShadeMapScreen> {
     _onWallClockChanged();
   }
 
+  Future<void> _goToCurrentLocation() async {
+    final controller = _controller;
+    if (controller == null || _locating) return;
+
+    setState(() => _locating = true);
+    try {
+      final position = await resolveDeviceLocation();
+      if (!mounted) return;
+
+      controller.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: LatLng(position.latitude, position.longitude),
+            zoom: 16.4,
+            tilt: _liveTilt,
+            bearing: _bearing,
+          ),
+        ),
+        duration: const Duration(milliseconds: 1500),
+      );
+
+      final offset = approxUtcOffsetHours(position.longitude);
+      final nowFields = localFieldsFromInstant(
+        DateTime.now().millisecondsSinceEpoch,
+        offset,
+      );
+      setState(() {
+        _utcOffsetHours = offset;
+        _dateStr = dateStrFromFields(nowFields);
+        _minutes = nowFields.minutesOfDay;
+        _locationLabel = 'My Location';
+      });
+      _locationSearch.selected('My Location');
+      _onWallClockChanged();
+    } on DeviceLocationException catch (e) {
+      _showLocationError(e.message);
+    } catch (_) {
+      _showLocationError("Couldn't determine your location.");
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
+  }
+
+  void _showLocationError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
   @override
   Widget build(BuildContext context) {
     final mq = MediaQuery.of(context);
@@ -674,6 +726,8 @@ class _ShadeMapScreenState extends State<ShadeMapScreen> {
             onDimTap: _toggleDimension,
             satellite: _satellite,
             onSatelliteTap: _toggleSatellite,
+            locating: _locating,
+            onLocateTap: _goToCurrentLocation,
           ),
         ),
       ],
@@ -839,6 +893,8 @@ class _CornerControls extends StatelessWidget {
     required this.onDimTap,
     required this.satellite,
     required this.onSatelliteTap,
+    required this.locating,
+    required this.onLocateTap,
   });
 
   final double bearing;
@@ -849,6 +905,8 @@ class _CornerControls extends StatelessWidget {
   final VoidCallback onDimTap;
   final bool satellite;
   final VoidCallback onSatelliteTap;
+  final bool locating;
+  final VoidCallback onLocateTap;
 
   @override
   Widget build(BuildContext context) {
@@ -951,6 +1009,20 @@ class _CornerControls extends StatelessWidget {
                           : const Color(0xFF9C5300))
                     : iconColor,
               ),
+            ),
+            divider,
+            _CornerButton(
+              onTap: onLocateTap,
+              child: locating
+                  ? SizedBox(
+                      width: 15,
+                      height: 15,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 1.8,
+                        color: iconColor,
+                      ),
+                    )
+                  : Icon(Icons.my_location, size: 18, color: iconColor),
             ),
           ],
         ),

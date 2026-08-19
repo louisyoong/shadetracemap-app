@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'device_location.dart';
 import 'glass_panel.dart';
 import 'location_search.dart';
 import 'sun_math.dart';
@@ -39,6 +40,27 @@ class _WeatherScreenState extends State<WeatherScreen> {
   void initState() {
     super.initState();
     _reload();
+    _detectDeviceLocation();
+  }
+
+  // Best-effort: silently keep the Kuala Lumpur default if the device
+  // won't give up a location (services off, permission denied, etc.) -
+  // this runs automatically on open, so it shouldn't interrupt the user
+  // with an error for something they didn't explicitly ask for.
+  Future<void> _detectDeviceLocation() async {
+    try {
+      final position = await resolveDeviceLocation();
+      if (!mounted) return;
+      setState(() {
+        _lat = position.latitude;
+        _lng = position.longitude;
+        _locationLabel = 'My Location';
+      });
+      _locationSearch.selected('My Location');
+      _reload();
+    } catch (_) {
+      // Keep default location.
+    }
   }
 
   @override

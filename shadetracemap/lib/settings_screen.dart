@@ -123,7 +123,7 @@ class SettingsScreen extends StatelessWidget {
                 leading: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: Image.asset(
-                    'assets/icon/logo.png',
+                    'assets/icon/logonew.png',
                     width: 40,
                     height: 40,
                     fit: BoxFit.cover,
