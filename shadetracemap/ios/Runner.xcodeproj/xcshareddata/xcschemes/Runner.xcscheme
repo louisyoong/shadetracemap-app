@@ -115,5 +115,23 @@
    <ArchiveAction
       buildConfiguration = "Release"
       revealArchiveInOrganizer = "YES">
+      <PostActions>
+         <ExecutionAction
+            ActionType = "Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
+            <ActionContent
+               title = "Generate dSYMs for prebuilt frameworks (e.g. MapLibre) that ship without one"
+               scriptText = "set -e&#10;APP_DIR=&quot;${ARCHIVE_PATH}/Products/Applications&quot;&#10;APP_PATH=&quot;${APP_DIR}/$(ls &quot;${APP_DIR}&quot;)&quot;&#10;FRAMEWORKS_PATH=&quot;${APP_PATH}/Frameworks&quot;&#10;DSYM_PATH=&quot;${ARCHIVE_PATH}/dSYMs&quot;&#10;if [ -d &quot;${FRAMEWORKS_PATH}&quot; ]; then&#10;  for FRAMEWORK in &quot;${FRAMEWORKS_PATH}&quot;/*.framework; do&#10;    NAME=$(basename &quot;${FRAMEWORK}&quot; .framework)&#10;    BINARY=&quot;${FRAMEWORK}/${NAME}&quot;&#10;    DSYM_OUT=&quot;${DSYM_PATH}/${NAME}.framework.dSYM&quot;&#10;    if [ -f &quot;${BINARY}&quot; ] &amp;&amp; [ ! -d &quot;${DSYM_OUT}&quot; ]; then&#10;      echo &quot;Generating dSYM for ${NAME}.framework&quot;&#10;      dsymutil &quot;${BINARY}&quot; -o &quot;${DSYM_OUT}&quot;&#10;    fi&#10;  done&#10;fi&#10;">
+               <EnvironmentBuildable>
+                  <BuildableReference
+                     BuildableIdentifier = "primary"
+                     BlueprintIdentifier = "97C146ED1CF9000F007C117D"
+                     BuildableName = "Runner.app"
+                     BlueprintName = "Runner"
+                     ReferencedContainer = "container:Runner.xcodeproj">
+                  </BuildableReference>
+               </EnvironmentBuildable>
+            </ActionContent>
+         </ExecutionAction>
+      </PostActions>
    </ArchiveAction>
 </Scheme>
