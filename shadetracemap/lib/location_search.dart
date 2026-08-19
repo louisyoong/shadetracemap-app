@@ -7,6 +7,40 @@ import 'package:http/http.dart' as http;
 
 import 'glass_panel.dart';
 
+const _nominatimUserAgent =
+    'ShadeTraceMapFlutter/1.0 (contact: louis910729@gmail.com)';
+
+/// Reverse-geocodes a lat/lng into a short display label (e.g. "Petaling
+/// Jaya, Selangor, Malaysia") via the same free Nominatim API forward search
+/// already uses - so a detected device location can show a real place name
+/// instead of a generic "My Location" placeholder. Returns null on any
+/// failure so callers can fall back to their own default label.
+Future<String?> reverseGeocodeLabel(double lat, double lon) async {
+  try {
+    final uri = Uri.parse('https://nominatim.openstreetmap.org/reverse')
+        .replace(
+          queryParameters: {
+            'format': 'json',
+            'lat': '$lat',
+            'lon': '$lon',
+            'zoom': '14',
+            'accept-language': 'en',
+          },
+        );
+    final res = await http.get(
+      uri,
+      headers: {'User-Agent': _nominatimUserAgent},
+    );
+    if (res.statusCode != 200) return null;
+    final data = jsonDecode(res.body);
+    final displayName = data is Map ? data['display_name'] as String? : null;
+    if (displayName == null || displayName.isEmpty) return null;
+    return displayName.split(',').take(3).join(',');
+  } catch (_) {
+    return null;
+  }
+}
+
 /// Debounced Nominatim place search, shared by every screen that needs a
 /// "search any place worldwide" field. Extracted out of ShadeMapScreen so
 /// the Sun Simulator screen (which also needs a location) doesn't duplicate
@@ -35,10 +69,7 @@ class LocationSearchController extends ChangeNotifier {
           );
       final res = await http.get(
         uri,
-        headers: {
-          'User-Agent':
-              'ShadeTraceMapFlutter/1.0 (contact: louis910729@gmail.com)',
-        },
+        headers: {'User-Agent': _nominatimUserAgent},
       );
       if (gen != _gen) return [];
       final data = res.statusCode == 200 ? jsonDecode(res.body) : null;

@@ -450,6 +450,11 @@ class _ShadeMapScreenState extends State<ShadeMapScreen> {
     await Future.delayed(const Duration(milliseconds: 400));
     await controller.moveCamera(CameraUpdate.tiltTo(58));
     await controller.moveCamera(CameraUpdate.bearingTo(-12));
+
+    // Auto-center on the device's own location once the map has settled,
+    // same as Sun Simulator and Weather do on open - silently keeps the
+    // Kuala Lumpur default if location services/permission aren't available.
+    _goToCurrentLocation(silent: true);
   }
 
   void _onCameraMove(CameraPosition pos) {
@@ -472,23 +477,6 @@ class _ShadeMapScreenState extends State<ShadeMapScreen> {
       CameraUpdate.tiltTo(goTo3D ? 58 : 0),
       duration: const Duration(milliseconds: 500),
     );
-  }
-
-  Future<void> _pickDate() async {
-    final parts = _dateStr.split('-').map(int.parse).toList();
-    final initial = DateTime(parts[0], parts[1], parts[2]);
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: DateTime(1970),
-      lastDate: DateTime(2100),
-      builder: (ctx, child) => Theme(data: ThemeData.dark(), child: child!),
-    );
-    if (picked == null) return;
-    setState(() {
-      _dateStr = '${picked.year}-${pad2(picked.month)}-${pad2(picked.day)}';
-    });
-    _onWallClockChanged();
   }
 
   void _togglePlaying() {
@@ -571,7 +559,11 @@ class _ShadeMapScreenState extends State<ShadeMapScreen> {
     _onWallClockChanged();
   }
 
-  Future<void> _goToCurrentLocation() async {
+  // [silent] is used for the automatic on-launch detection below: unlike a
+  // deliberate tap of the locate button, the user didn't ask for this one,
+  // so a denied/unavailable location shouldn't interrupt them with a
+  // snackbar - it just quietly keeps the Kuala Lumpur default.
+  Future<void> _goToCurrentLocation({bool silent = false}) async {
     final controller = _controller;
     if (controller == null || _locating) return;
 
@@ -605,10 +597,22 @@ class _ShadeMapScreenState extends State<ShadeMapScreen> {
       });
       _locationSearch.selected('My Location');
       _onWallClockChanged();
+
+      // Best-effort follow-up: swap the generic placeholder for a real
+      // place name once reverse geocoding resolves, without blocking the
+      // camera move/recompute on it.
+      final label = await reverseGeocodeLabel(
+        position.latitude,
+        position.longitude,
+      );
+      if (label != null && mounted) {
+        setState(() => _locationLabel = label);
+        _locationSearch.selected(label);
+      }
     } on DeviceLocationException catch (e) {
-      _showLocationError(e.message);
+      if (!silent) _showLocationError(e.message);
     } catch (_) {
-      _showLocationError("Couldn't determine your location.");
+      if (!silent) _showLocationError("Couldn't determine your location.");
     } finally {
       if (mounted) setState(() => _locating = false);
     }
@@ -701,7 +705,6 @@ class _ShadeMapScreenState extends State<ShadeMapScreen> {
               sunrise: _sunrise,
               sunset: _sunset,
               opacity: _opacity,
-              onDateTap: _pickDate,
               onPlayToggle: _togglePlaying,
               onMinutesChanged: (v) {
                 setState(() => _minutes = v);
@@ -1105,7 +1108,6 @@ class _BottomBar extends StatelessWidget {
     required this.sunrise,
     required this.sunset,
     required this.opacity,
-    required this.onDateTap,
     required this.onPlayToggle,
     required this.onMinutesChanged,
     required this.onOpacityChanged,
@@ -1117,7 +1119,6 @@ class _BottomBar extends StatelessWidget {
   final int? sunrise;
   final int? sunset;
   final int opacity;
-  final VoidCallback onDateTap;
   final VoidCallback onPlayToggle;
   final ValueChanged<int> onMinutesChanged;
   final ValueChanged<int> onOpacityChanged;
@@ -1130,10 +1131,6 @@ class _BottomBar extends StatelessWidget {
     final onPanelMuted = isDark
         ? const Color(0xFF9AA0A8)
         : const Color(0xFF6B7078);
-    final buttonBg = isDark ? const Color(0xFF1E2126) : const Color(0xFFE6E8EB);
-    final buttonBorder = isDark
-        ? const Color(0xFF3A3F47)
-        : const Color(0xFFCBCFD4);
     return GlassPanel(
       borderRadius: 18,
       tint: panelTint,
@@ -1166,96 +1163,53 @@ class _BottomBar extends StatelessWidget {
                   ),
                 ],
               ),
-              Row(
-                children: [
-                  GestureDetector(
-                    onTap: onDateTap,
-                    child: Container(
-                      width: 30,
-                      height: 30,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: buttonBg,
-                        border: Border.all(color: buttonBorder),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        Icons.calendar_today,
-                        size: 13,
-                        color: onPanel,
-                      ),
-                    ),
+              GestureDetector(
+                onTap: onPlayToggle,
+                child: Container(
+                  width: 30,
+                  height: 30,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF3B7CFF),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap: onPlayToggle,
-                    child: Container(
-                      width: 30,
-                      height: 30,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF3B7CFF),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        playing ? Icons.pause : Icons.play_arrow,
-                        size: 15,
-                        color: Colors.white,
-                      ),
-                    ),
+                  child: Icon(
+                    playing ? Icons.pause : Icons.play_arrow,
+                    size: 15,
+                    color: Colors.white,
                   ),
-                ],
+                ),
               ),
             ],
           ),
-          SizedBox(
-            height: 34,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Container(
-                  height: 16,
-                  // Flutter insets a Slider's track by
-                  // max(overlayRadius, thumbRadius) on each side (15px here,
-                  // from the overlayShape below) so the thumb can travel
-                  // edge-to-edge without clipping. This custom gradient
-                  // "track" drawn underneath the (invisible) real one has to
-                  // use the same inset, or the thumb visibly drifts away
-                  // from the gradient's own color stops as you drag toward
-                  // either end.
-                  margin: const EdgeInsets.symmetric(horizontal: 15),
-                  decoration: BoxDecoration(
-                    gradient: buildDayGradient(sunrise, sunset, isDark: isDark),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                SliderTheme(
-                  data: SliderTheme.of(context).copyWith(
-                    trackHeight: 0,
-                    activeTrackColor: Colors.transparent,
-                    inactiveTrackColor: Colors.transparent,
-                    thumbColor: Colors.white,
-                    thumbShape: const RoundSliderThumbShape(
-                      enabledThumbRadius: 10,
-                      elevation: 1,
-                    ),
-                    overlayShape: const RoundSliderOverlayShape(
-                      overlayRadius: 15,
-                    ),
-                  ),
-                  child: Slider(
-                    min: 0,
-                    max: 1439,
-                    value: minutes.toDouble(),
-                    onChanged: (v) => onMinutesChanged(v.round()),
-                  ),
-                ),
-              ],
-            ),
+          _TimeSlider(
+            minutes: minutes,
+            sunrise: sunrise,
+            sunset: sunset,
+            isDark: isDark,
+            onChanged: onMinutesChanged,
           ),
-          Text(
-            formatSunTimes(sunrise, sunset),
-            style: TextStyle(color: onPanelMuted, fontSize: 10.5),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Icon(Icons.wb_twilight, size: 13, color: onPanelMuted),
+              const SizedBox(width: 4),
+              Text(
+                sunrise == null
+                    ? '--:--'
+                    : '${pad2(sunrise! ~/ 60)}:${pad2(sunrise! % 60)}',
+                style: TextStyle(color: onPanelMuted, fontSize: 10.5),
+              ),
+              const SizedBox(width: 14),
+              Icon(Icons.nights_stay_outlined, size: 13, color: onPanelMuted),
+              const SizedBox(width: 4),
+              Text(
+                sunset == null
+                    ? '--:--'
+                    : '${pad2(sunset! ~/ 60)}:${pad2(sunset! % 60)}',
+                style: TextStyle(color: onPanelMuted, fontSize: 10.5),
+              ),
+            ],
           ),
           const SizedBox(height: 4),
           Row(
@@ -1294,4 +1248,395 @@ class _BottomBar extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A small pinned badge marking sunrise/sunset's minute-of-day position on
+/// the time slider's track, so both are visible at a glance instead of only
+/// readable from the text line underneath.
+class _SunMarker extends StatelessWidget {
+  const _SunMarker({required this.icon});
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Container(
+        width: 14,
+        height: 14,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: const Color(0xFF1B1D22).withValues(alpha: 0.75),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.85),
+            width: 1,
+          ),
+        ),
+        child: Icon(icon, size: 8, color: Colors.white),
+      ),
+    );
+  }
+}
+
+/// The time-of-day slider: a custom gesture surface (not the stock Material
+/// Slider) so one recognizer can own both interactions at once -
+/// single-finger drag scrubs the selected minute, and a two-finger pinch
+/// zooms the visible window down to as little as one hour for finer
+/// scrubbing precision. A single `GestureDetector` is used deliberately
+/// instead of layering a separate pinch detector over a Slider: once a
+/// Slider's own drag recognizer claims a pointer, no later widget state
+/// change can wrestle that pointer back, so a second finger joining
+/// mid-drag would fight the first for control of the value. Doing both
+/// gestures through one `onScale*` stream sidesteps that entirely.
+class _TimeSlider extends StatefulWidget {
+  const _TimeSlider({
+    required this.minutes,
+    required this.sunrise,
+    required this.sunset,
+    required this.isDark,
+    required this.onChanged,
+  });
+
+  final int minutes;
+  final int? sunrise;
+  final int? sunset;
+  final bool isDark;
+  final ValueChanged<int> onChanged;
+
+  @override
+  State<_TimeSlider> createState() => _TimeSliderState();
+}
+
+class _TimeSliderState extends State<_TimeSlider> {
+  static const _minSpan = 60.0; // most zoomed-in: 1 hour visible
+  static const _maxSpan = 1440.0; // fully zoomed-out: the whole day
+  static const _inset = 18.0;
+
+  double _span = _maxSpan;
+  double _center = 720;
+
+  // Baseline captured at gesture start, and re-captured any time the active
+  // pointer count changes mid-gesture (e.g. a second finger joins a drag to
+  // start a pinch) - `ScaleGestureRecognizer` keeps `scale`/`focalPoint`
+  // relative to whenever the pointer count last changed, not to true
+  // gesture start, so our own math has to track that same reference frame.
+  int _basePointerCount = 0;
+  double _baseSpan = _maxSpan;
+  double _baseCenter = 720;
+  double _baseScale = 1;
+  Offset _baseFocal = Offset.zero;
+  double _baseMinutes = 0;
+  double _trackWidth = 1;
+
+  double get _start => (_center - _span / 2).clamp(0.0, _maxSpan - _span);
+  bool get _zoomed => _span < _maxSpan - 1;
+
+  void _captureBaseline(int pointerCount, double scale, Offset focal) {
+    _basePointerCount = pointerCount;
+    _baseSpan = _span;
+    _baseCenter = _center;
+    _baseScale = scale;
+    _baseFocal = focal;
+    _baseMinutes = widget.minutes.toDouble();
+  }
+
+  void _handleScaleStart(ScaleStartDetails d) =>
+      _captureBaseline(d.pointerCount, 1, d.localFocalPoint);
+
+  void _handleScaleUpdate(ScaleUpdateDetails d) {
+    if (d.pointerCount != _basePointerCount) {
+      _captureBaseline(d.pointerCount, d.scale, d.localFocalPoint);
+      return;
+    }
+    if (d.pointerCount >= 2) {
+      final newSpan = (_baseSpan / (d.scale / _baseScale)).clamp(
+        _minSpan,
+        _maxSpan,
+      );
+      // Keep the minute under the pinch's midpoint stationary on screen
+      // while zooming, the same anchor-on-focal-point behaviour as a map
+      // pinch, instead of always re-centering on the middle of the window.
+      final focalFrac = (_baseFocal.dx / _trackWidth).clamp(0.0, 1.0);
+      final anchorMinute = _baseCenter - _baseSpan / 2 + focalFrac * _baseSpan;
+      setState(() {
+        _span = newSpan;
+        _center = (anchorMinute - (focalFrac - 0.5) * newSpan).clamp(
+          newSpan / 2,
+          _maxSpan - newSpan / 2,
+        );
+      });
+    } else {
+      final dMinutes =
+          (d.localFocalPoint.dx - _baseFocal.dx) / _trackWidth * _span;
+      widget.onChanged((_baseMinutes + dMinutes).round().clamp(0, 1439));
+    }
+  }
+
+  void _handleScaleEnd(ScaleEndDetails d) => _basePointerCount = 0;
+
+  void _resetZoom() => setState(() {
+    _span = _maxSpan;
+    _center = 720;
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final sr = widget.sunrise;
+    final ss = widget.sunset;
+    final isDay =
+        sr != null && ss != null && widget.minutes >= sr && widget.minutes < ss;
+    final mutedColor = widget.isDark
+        ? const Color(0xFF9AA0A8)
+        : const Color(0xFF6B7078);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        _trackWidth = constraints.maxWidth;
+        double xFor(num mins) {
+          final frac = ((mins - _start) / _span).clamp(0.0, 1.0);
+          return _inset + frac * (_trackWidth - _inset * 2);
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onScaleStart: _handleScaleStart,
+              onScaleUpdate: _handleScaleUpdate,
+              onScaleEnd: _handleScaleEnd,
+              onDoubleTap: _zoomed ? _resetZoom : null,
+              child: SizedBox(
+                height: 44,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Positioned(
+                      top: 13,
+                      left: _inset,
+                      right: _inset,
+                      child: Container(
+                        height: 18,
+                        decoration: BoxDecoration(
+                          gradient: buildDayGradient(
+                            sr,
+                            ss,
+                            isDark: widget.isDark,
+                            windowStart: _start,
+                            windowSpan: _span,
+                          ),
+                          borderRadius: BorderRadius.circular(9),
+                          border: Border.all(
+                            color: (widget.isDark ? Colors.white : Colors.black)
+                                .withValues(alpha: 0.08),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(
+                                alpha: widget.isDark ? 0.35 : 0.12,
+                              ),
+                              blurRadius: 5,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    if (sr != null && sr >= _start && sr <= _start + _span)
+                      Positioned(
+                        left: xFor(sr) - 7,
+                        top: 15,
+                        child: const _SunMarker(icon: Icons.wb_twilight),
+                      ),
+                    if (ss != null && ss >= _start && ss <= _start + _span)
+                      Positioned(
+                        left: xFor(ss) - 7,
+                        top: 15,
+                        child: const _SunMarker(
+                          icon: Icons.nights_stay_outlined,
+                        ),
+                      ),
+                    Positioned(
+                      left: xFor(widget.minutes) - 13,
+                      top: 9,
+                      child: CustomPaint(
+                        size: const Size(26, 26),
+                        painter: _TimeThumbPainter(isDay: isDay),
+                      ),
+                    ),
+                    if (_zoomed)
+                      Positioned(
+                        top: 0,
+                        right: 0,
+                        child: GestureDetector(
+                          onTap: _resetZoom,
+                          child: _ZoomBadge(span: _span),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            _HourLabels(
+              start: _start,
+              span: _span,
+              xFor: xFor,
+              color: mutedColor,
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Dynamically-spaced hour/minute tick labels under the track: the label
+/// interval adapts to the current zoom level (still the familiar
+/// 12AM/6AM/12PM/6PM/12AM set at full-day zoom) so scrubbing a zoomed-in
+/// window shows finer time markers instead of four labels 90% of an inch
+/// apart.
+class _HourLabels extends StatelessWidget {
+  const _HourLabels({
+    required this.start,
+    required this.span,
+    required this.xFor,
+    required this.color,
+  });
+
+  final double start;
+  final double span;
+  final double Function(num) xFor;
+  final Color color;
+
+  static const _stepCandidates = [360, 180, 120, 60, 30, 15, 10, 5];
+
+  int get _step {
+    for (final step in _stepCandidates) {
+      if (span / step >= 3.5) return step;
+    }
+    return 5;
+  }
+
+  String _label(int mins) {
+    final m = mins % 1440;
+    final h = m ~/ 60, mm = m % 60;
+    final display = h % 12 == 0 ? 12 : h % 12;
+    final ampm = h < 12 ? 'AM' : 'PM';
+    return mm == 0 ? '$display$ampm' : '$display:${pad2(mm)}$ampm';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final step = _step;
+    final first = (start / step).ceil() * step;
+    final labels = <Widget>[];
+    for (var m = first; m <= start + span; m += step) {
+      labels.add(
+        Positioned(
+          left: xFor(m) - 16,
+          width: 32,
+          child: Text(
+            _label(m),
+            textAlign: TextAlign.center,
+            style: TextStyle(color: color, fontSize: 9),
+          ),
+        ),
+      );
+    }
+    return SizedBox(height: 12, child: Stack(children: labels));
+  }
+}
+
+/// Small "zoomed in" indicator over the time slider, doubling as a tap
+/// target to reset back to the full-day view - shown only while zoomed, so
+/// double-tap-to-reset stays discoverable without a permanent extra button.
+class _ZoomBadge extends StatelessWidget {
+  const _ZoomBadge({required this.span});
+  final double span;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = span < 90
+        ? '${span.round()}m'
+        : '${(span / 60).toStringAsFixed(span % 60 == 0 ? 0 : 1)}h';
+    return Container(
+      margin: const EdgeInsets.only(top: 2, right: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 9,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(width: 3),
+          const Icon(Icons.close, size: 9, color: Colors.white),
+        ],
+      ),
+    );
+  }
+}
+
+/// Time-slider thumb: a white knob with a sun/moon glyph and a soft colour
+/// glow (warm gold by day, cool indigo by night), so the handle itself
+/// communicates day vs. night at a glance instead of leaving that entirely
+/// to the gradient track underneath it.
+class _TimeThumbPainter extends CustomPainter {
+  const _TimeThumbPainter({required this.isDay});
+  final bool isDay;
+
+  static const _radius = 13.0;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final accent = isDay ? const Color(0xFFFFB74D) : const Color(0xFF7C93FF);
+
+    canvas.drawCircle(
+      center,
+      _radius + 6,
+      Paint()
+        ..color = accent.withValues(alpha: 0.35)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+    );
+    canvas.drawCircle(center, _radius, Paint()..color = Colors.white);
+    canvas.drawCircle(
+      center,
+      _radius,
+      Paint()
+        ..color = accent
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
+
+    final icon = isDay ? Icons.wb_sunny_rounded : Icons.nights_stay_rounded;
+    final iconPainter = TextPainter(textDirection: TextDirection.ltr)
+      ..text = TextSpan(
+        text: String.fromCharCode(icon.codePoint),
+        style: TextStyle(
+          fontSize: 14,
+          fontFamily: icon.fontFamily,
+          package: icon.fontPackage,
+          color: accent,
+        ),
+      )
+      ..layout();
+    iconPainter.paint(
+      canvas,
+      center - Offset(iconPainter.width / 2, iconPainter.height / 2),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _TimeThumbPainter oldDelegate) =>
+      oldDelegate.isDay != isDay;
 }

@@ -86,6 +86,18 @@ class _SunSimulatorScreenState extends State<SunSimulatorScreen> {
       });
       _locationSearch.selected('My Location');
       _recomputeDayPath();
+
+      // Best-effort follow-up: swap the generic placeholder for a real
+      // place name once reverse geocoding resolves, without blocking the
+      // sun-path recompute on it.
+      final label = await reverseGeocodeLabel(
+        position.latitude,
+        position.longitude,
+      );
+      if (label != null && mounted) {
+        setState(() => _locationLabel = label);
+        _locationSearch.selected(label);
+      }
     } catch (_) {
       // Keep default location.
     }

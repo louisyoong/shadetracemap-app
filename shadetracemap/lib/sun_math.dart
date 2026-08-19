@@ -247,14 +247,22 @@ String formatBigTime(int mins) {
 }
 
 /// Builds the day/night/twilight gradient for the time-of-day slider track,
-/// mirroring the web app's CSS linear-gradient stop layout.
+/// mirroring the web app's CSS linear-gradient stop layout. [windowStart]
+/// and [windowSpan] (both in minutes-of-day) let the track represent a
+/// zoomed-in slice of the day rather than the full 0-1440 range - the
+/// dawn/dusk transition bands stay a fixed width in minutes, so zooming in
+/// spreads them out over more of the visible track, same as zooming a map.
 LinearGradient buildDayGradient(
   int? sunrise,
   int? sunset, {
   bool isDark = true,
+  double windowStart = 0,
+  double windowSpan = 1440,
 }) {
-  final sr = sunrise != null ? sunrise / 1440 * 100 : 29.0;
-  final ss = sunset != null ? sunset / 1440 * 100 : 81.0;
+  // Sun times not resolved yet - approximate with the same 29%/81% of-day
+  // fallback the slider used before real sunrise/sunset were available.
+  final sr = (sunrise ?? (0.29 * 1440).round()).toDouble();
+  final ss = (sunset ?? (0.81 * 1440).round()).toDouble();
   const night = Color(0xFF171F38);
   const dawnDusk1 = Color(0xFFFFCF94);
   // The pale "day" blue reads fine against the bottom bar's dark glass, but
@@ -262,14 +270,23 @@ LinearGradient buildDayGradient(
   // background - use a more saturated blue there for the same contrast.
   final day = isDark ? const Color(0xFFBFE4FF) : const Color(0xFF3D7FC4);
   const dawnDusk2 = Color(0xFFFFB877);
+
+  // Original stops were expressed as ±2/±6 percentage-points of the day
+  // (i.e. of 1440 minutes) - keep that same absolute-minutes softness
+  // regardless of how much of the day the window currently covers.
+  const softNear = 0.02 * 1440;
+  const softFar = 0.06 * 1440;
+  double frac(double mins) =>
+      ((mins - windowStart) / windowSpan).clamp(0.0, 1.0);
+
   final stops = <double>[
     0,
-    math.max(sr - 2, 0) / 100,
-    sr / 100,
-    math.min(sr + 6, 100) / 100,
-    math.max(ss - 6, 0) / 100,
-    ss / 100,
-    math.min(ss + 2, 100) / 100,
+    frac(sr - softNear),
+    frac(sr),
+    frac(sr + softFar),
+    frac(ss - softFar),
+    frac(ss),
+    frac(ss + softNear),
     1,
   ];
   // Stops must be non-decreasing for LinearGradient; clamp any inversion
@@ -283,10 +300,4 @@ LinearGradient buildDayGradient(
     colors: [night, night, dawnDusk1, day, day, dawnDusk2, night, night],
     stops: stops,
   );
-}
-
-String formatSunTimes(int? sunrise, int? sunset) {
-  if (sunrise == null || sunset == null) return 'Sunrise -- · Sunset --';
-  return 'Sunrise ${pad2(sunrise ~/ 60)}:${pad2(sunrise % 60)} · '
-      'Sunset ${pad2(sunset ~/ 60)}:${pad2(sunset % 60)}';
 }

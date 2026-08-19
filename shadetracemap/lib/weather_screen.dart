@@ -58,6 +58,18 @@ class _WeatherScreenState extends State<WeatherScreen> {
       });
       _locationSearch.selected('My Location');
       _reload();
+
+      // Best-effort follow-up: swap the generic placeholder for a real
+      // place name once reverse geocoding resolves, without blocking the
+      // weather fetch on it.
+      final label = await reverseGeocodeLabel(
+        position.latitude,
+        position.longitude,
+      );
+      if (label != null && mounted) {
+        setState(() => _locationLabel = label);
+        _locationSearch.selected(label);
+      }
     } catch (_) {
       // Keep default location.
     }
