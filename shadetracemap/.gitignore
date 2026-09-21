@@ -33,6 +33,10 @@ migrate_working_dir/
 /build/
 /coverage/
 
+# App-specific identifiers kept out of the public repo - see
+# lib/app_config.example.dart for the template.
+lib/app_config.dart
+
 # Symbolication related
 app.*.symbols
 

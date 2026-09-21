@@ -92,18 +92,6 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 4),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                'The Shade Map tab keeps its dark, map-first look in every '
-                'mode - only the app chrome and Sun Simulator follow this '
-                'setting.',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
             const SizedBox(height: 28),
             Text(
               'ABOUT',

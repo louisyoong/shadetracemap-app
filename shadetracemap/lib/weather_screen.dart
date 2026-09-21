@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import 'device_location.dart';
@@ -27,7 +29,8 @@ class WeatherScreen extends StatefulWidget {
   State<WeatherScreen> createState() => _WeatherScreenState();
 }
 
-class _WeatherScreenState extends State<WeatherScreen> {
+class _WeatherScreenState extends State<WeatherScreen>
+    with SingleTickerProviderStateMixin {
   double _lat = _initialLat;
   double _lng = _initialLng;
   String _locationLabel = 'Kuala Lumpur, Malaysia';
@@ -35,6 +38,14 @@ class _WeatherScreenState extends State<WeatherScreen> {
   final _locationSearch = LocationSearchController();
 
   Future<WeatherData>? _future;
+
+  // Slowly sweeps the background gradient's axis back and forth for as
+  // long as this tab stays open, so the backdrop reads as gently alive
+  // instead of a flat, static wash - same technique as the Compass tab.
+  late final AnimationController _bgController = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 6),
+  )..repeat(reverse: true);
 
   @override
   void initState() {
@@ -78,6 +89,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
   @override
   void dispose() {
     _locationSearch.dispose();
+    _bgController.dispose();
     super.dispose();
   }
 
@@ -113,8 +125,20 @@ class _WeatherScreenState extends State<WeatherScreen> {
       future: _future,
       builder: (context, snapshot) {
         final temp = snapshot.data?.temperature;
-        return Container(
-          decoration: BoxDecoration(gradient: _tempGradient(temp, isDark)),
+        return AnimatedBuilder(
+          animation: _bgController,
+          builder: (context, child) {
+            return Container(
+              decoration: BoxDecoration(
+                gradient: _animatedTempGradient(
+                  temp,
+                  isDark,
+                  _bgController.value,
+                ),
+              ),
+              child: child,
+            );
+          },
           child: SafeArea(
             bottom: false,
             child: Column(
@@ -338,7 +362,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
 /// neutral mid-tone while loading/on error (temp == null). Dark mode uses
 /// its own deeper, lower-luminance version of the same two-colour idea
 /// (paired with light text) rather than just dimming the light palette.
-LinearGradient _tempGradient(double? tempC, bool isDark) {
+List<Color> _tempColors(double? tempC, bool isDark) {
   final Color coldTop, coldBottom, hotTop, hotBottom;
   if (isDark) {
     coldTop = const Color(0xFF123842);
@@ -352,13 +376,35 @@ LinearGradient _tempGradient(double? tempC, bool isDark) {
     hotBottom = const Color(0xFFFFF3E0);
   }
   final t = tempC == null ? 0.5 : ((tempC - 10) / 20).clamp(0.0, 1.0);
+  return [
+    Color.lerp(coldTop, hotTop, t)!,
+    Color.lerp(coldBottom, hotBottom, t)!,
+  ];
+}
+
+/// Same temperature-driven colours as [_tempColors], but the gradient
+/// itself rotates back and forth by up to ±35 degrees as [sweepT] (0-1,
+/// ping-ponging) advances.
+///
+/// This uses [GradientRotation] rather than moving `begin`/`end` via
+/// `Alignment.lerp`: Alignment's x/y are normalised independently to the
+/// box's width and height, so on a tall phone screen even a large swing
+/// between two mostly-vertical alignments (e.g. the two diagonal corners)
+/// barely rotates the *actual rendered* gradient - the projection stays
+/// dominated by the screen's height either way. GradientRotation instead
+/// rotates the gradient directly in real pixel space, so the angle here is
+/// the angle you actually see, regardless of aspect ratio.
+LinearGradient _animatedTempGradient(
+  double? tempC,
+  bool isDark,
+  double sweepT,
+) {
+  final angle = (sweepT - 0.5) * 2 * (math.pi * 35 / 180);
   return LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [
-      Color.lerp(coldTop, hotTop, t)!,
-      Color.lerp(coldBottom, hotBottom, t)!,
-    ],
+    colors: _tempColors(tempC, isDark),
+    transform: GradientRotation(angle),
   );
 }
 

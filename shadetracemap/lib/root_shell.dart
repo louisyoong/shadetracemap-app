@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'app_rating.dart';
 import 'app_tab_bar.dart';
 import 'compass_screen.dart';
 import 'settings_screen.dart';
@@ -8,6 +9,9 @@ import 'sun_simulator_screen.dart';
 import 'weather_screen.dart';
 
 const _tabAccent = Color(0xFFFFB300);
+
+// Must match the "Settings" entry's position in _tabItems below.
+const _settingsTabIndex = 4;
 
 /// Light theme: a bright, near-white glass pill (close to the package's own
 /// tuned default) - reads as a clean iOS-style frosted card against a light
@@ -130,7 +134,12 @@ class _RootShellState extends State<RootShell> {
       ),
       bottomNavigationBar: AppTabBar(
         currentIndex: _tabIndex,
-        onTap: (i) => setState(() => _tabIndex = i),
+        onTap: (i) {
+          setState(() => _tabIndex = i);
+          if (i == _settingsTabIndex) {
+            maybeShowRatingDialog(context);
+          }
+        },
         style: (isDark ? _darkTabBarStyle : _lightTabBarStyle).copyWith(
           // Matches the bottom-bar spacing every other screen in the app
           // already uses (10 + the device's own safe-area inset) instead
