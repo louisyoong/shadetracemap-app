@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_tab_bar.dart';
+import 'compass_screen.dart';
 import 'settings_screen.dart';
 import 'shade_map_screen.dart';
 import 'sun_simulator_screen.dart';
@@ -76,7 +77,8 @@ const _darkTabBarStyle = AppTabBarStyle(
 
 const _tabItems = [
   LiquidGlassBarItem(iconData: Icons.map_outlined, label: 'ShadeMap'),
-  LiquidGlassBarItem(iconData: Icons.wb_sunny_outlined, label: 'Sun Simulator'),
+  LiquidGlassBarItem(iconData: Icons.wb_sunny_outlined, label: 'Sun Path'),
+  LiquidGlassBarItem(iconData: Icons.explore_outlined, label: 'Compass'),
   LiquidGlassBarItem(iconData: Icons.cloud_outlined, label: 'Weather'),
   LiquidGlassBarItem(iconData: Icons.settings_outlined, label: 'Settings'),
 ];
@@ -118,6 +120,7 @@ class _RootShellState extends State<RootShell> {
         children: [
           const ShadeMapScreen(),
           const SunSimulatorScreen(),
+          const CompassScreen(),
           const WeatherScreen(),
           SettingsScreen(
             themeMode: widget.themeMode,
