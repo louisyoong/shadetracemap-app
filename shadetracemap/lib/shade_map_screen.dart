@@ -1196,7 +1196,10 @@ class _BottomBar extends StatelessWidget {
               Icon(
                 Icons.wb_twilight,
                 size: 13,
-                color: const Color(0xFFFFB74D).withValues(alpha: 0.9),
+                color: accentForTheme(
+                  const Color(0xFFFFB74D),
+                  isDark,
+                ).withValues(alpha: 0.9),
               ),
               const SizedBox(width: 4),
               Text(
@@ -1213,7 +1216,10 @@ class _BottomBar extends StatelessWidget {
               Icon(
                 Icons.nights_stay_outlined,
                 size: 13,
-                color: const Color(0xFF8B93FF).withValues(alpha: 0.9),
+                color: accentForTheme(
+                  const Color(0xFF8B93FF),
+                  isDark,
+                ).withValues(alpha: 0.9),
               ),
               const SizedBox(width: 4),
               Text(

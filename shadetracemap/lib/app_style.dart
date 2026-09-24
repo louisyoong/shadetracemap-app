@@ -18,6 +18,37 @@ const kDarkTextMuted = Color(0x99F3F1EC);
 Color textColorFor(bool isDark) => isDark ? kDarkText : kLightText;
 Color textMutedFor(bool isDark) => isDark ? kDarkTextMuted : kLightTextMuted;
 
+/// Tones a vivid accent color down for light backgrounds by blending it
+/// toward the light-mode ink color. A full-saturation accent (bright blue,
+/// orange, teal, ...) reads as a harsh "neon" poke sitting on a bright/
+/// white card; the same hue mixed toward a warm dark ink instead reads as
+/// a calmer, richer shade that's easier on the eyes, while dark mode - where
+/// vivid colors against a dark background read fine - is left untouched.
+Color accentForTheme(Color accent, bool isDark) {
+  if (isDark) return accent;
+  return Color.lerp(accent, kLightText, 0.3)!;
+}
+
+/// Background fill for an accent-tinted circular icon badge. Dark mode
+/// keeps a soft translucent tint of the accent (reads clearly against a
+/// dark card). Light mode instead fills solid with the (toned-down, via
+/// [accentForTheme]) accent color - a translucent tint there read as
+/// washed-out/low-contrast no matter how much the alpha was pushed up, so
+/// a solid fill paired with a white icon ([badgeIconColorFor]) is used
+/// instead, the same "colored chip, white glyph" pattern iOS uses for its
+/// own settings icons.
+Color badgeBackgroundFor(Color accent, bool isDark) {
+  final toned = accentForTheme(accent, isDark);
+  return isDark ? toned.withValues(alpha: 0.15) : toned;
+}
+
+/// The icon color to pair with [badgeBackgroundFor]'s background: the
+/// accent itself over dark mode's translucent tint, or white over light
+/// mode's solid fill.
+Color badgeIconColorFor(Color accent, bool isDark) {
+  return isDark ? accentForTheme(accent, isDark) : Colors.white;
+}
+
 // Corner radius for the app's major floating glass panels/hero cards - a
 // touch softer/rounder than the original 14-18px so cards read closer to
 // the pillowy, generous rounding style apps like Lumy use.
@@ -82,7 +113,8 @@ class StatTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final badgeColor = accent ?? textColor;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final rawAccent = accent ?? textColor;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: crossAxisAlignment,
@@ -92,10 +124,14 @@ class StatTile extends StatelessWidget {
           height: 28,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: badgeColor.withValues(alpha: 0.15),
+            color: badgeBackgroundFor(rawAccent, isDark),
             shape: BoxShape.circle,
           ),
-          child: Icon(icon, size: 14, color: badgeColor),
+          child: Icon(
+            icon,
+            size: 14,
+            color: badgeIconColorFor(rawAccent, isDark),
+          ),
         ),
         const SizedBox(height: 7),
         Text(

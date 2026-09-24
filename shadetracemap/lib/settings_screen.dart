@@ -188,6 +188,7 @@ class _InfoRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       child: Row(
@@ -197,10 +198,14 @@ class _InfoRow extends StatelessWidget {
             height: 30,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: _accent.withValues(alpha: 0.15),
+              color: badgeBackgroundFor(_accent, isDark),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, size: 15, color: _accent),
+            child: Icon(
+              icon,
+              size: 15,
+              color: badgeIconColorFor(_accent, isDark),
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -236,6 +241,11 @@ class _ThemeOption extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    // Only the selected row gets the bold "colored chip, white glyph"
+    // badge - an unselected row stays a subdued neutral tint, so the
+    // selected option still reads as clearly the standout one.
+    final accent = accentForTheme(_accent, isDark);
     return InkWell(
       borderRadius: BorderRadius.circular(14),
       onTap: onTap,
@@ -248,13 +258,16 @@ class _ThemeOption extends StatelessWidget {
               height: 34,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: (selected ? _accent : theme.colorScheme.onSurface)
-                    .withValues(alpha: 0.14),
+                color: selected
+                    ? badgeBackgroundFor(_accent, isDark)
+                    : theme.colorScheme.onSurface.withValues(alpha: 0.14),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 icon,
-                color: selected ? _accent : theme.colorScheme.onSurface,
+                color: selected
+                    ? badgeIconColorFor(_accent, isDark)
+                    : theme.colorScheme.onSurface,
                 size: 18,
               ),
             ),
@@ -280,7 +293,7 @@ class _ThemeOption extends StatelessWidget {
               ),
             ),
             if (selected)
-              Icon(Icons.check_circle, color: _accent, size: 20),
+              Icon(Icons.check_circle, color: accent, size: 20),
           ],
         ),
       ),
