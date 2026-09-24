@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_bar/liquid_glass_bar.dart' show LiquidGlassBarItem;
-import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
+
+import 'glass_panel.dart';
 
 export 'package:liquid_glass_bar/liquid_glass_bar.dart' show LiquidGlassBarItem;
-export 'package:liquid_glass_renderer/liquid_glass_renderer.dart'
-    show LiquidGlassSettings;
 
 /// Theme-aware styling for [AppTabBar].
 ///
@@ -24,7 +23,9 @@ class AppTabBarStyle {
   final Color indicatorGlowColor;
   final Color outerBorderColor;
   final double outerBorderWidth;
-  final LiquidGlassSettings glassSettings;
+  final Color glassTint;
+  final double glassTintOpacity;
+  final double blurSigma;
   final double borderRadius;
   final double height;
   final EdgeInsets padding;
@@ -40,7 +41,9 @@ class AppTabBarStyle {
     required this.indicatorBorderColor,
     required this.indicatorGlowColor,
     required this.outerBorderColor,
-    required this.glassSettings,
+    required this.glassTint,
+    this.glassTintOpacity = 0.55,
+    this.blurSigma = 18,
     this.padding = const EdgeInsets.fromLTRB(16, 10, 16, 10),
     this.outerBorderWidth = 1.5,
     this.borderRadius = 28,
@@ -62,7 +65,9 @@ class AppTabBarStyle {
     indicatorGlowColor: indicatorGlowColor,
     outerBorderColor: outerBorderColor,
     outerBorderWidth: outerBorderWidth,
-    glassSettings: glassSettings,
+    glassTint: glassTint,
+    glassTintOpacity: glassTintOpacity,
+    blurSigma: blurSigma,
     borderRadius: borderRadius,
     height: height,
     padding: padding ?? this.padding,
@@ -123,24 +128,23 @@ class _AppTabBarState extends State<AppTabBar> {
       padding: style.padding,
       child: Stack(
         children: [
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(style.borderRadius),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x33000000),
-                    blurRadius: 20,
-                    offset: Offset(0, 10),
-                    spreadRadius: -5,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          LiquidGlass.withOwnLayer(
-            shape: LiquidRoundedRectangle(borderRadius: style.borderRadius),
-            settings: style.glassSettings,
+          // Plain BackdropFilter-based glass (the same technique GlassPanel
+          // uses for every other floating panel in the app) rather than the
+          // liquid_glass_renderer package's custom shader this used to use.
+          // That shader renders itself into its own compositing layer,
+          // which can't correctly capture a native platform view (e.g. the
+          // Shade Map's map) sitting directly behind it - it showed up as a
+          // flat grey box there instead of glass. Plain BackdropFilter blur
+          // doesn't have that limitation (GlassPanel's own search bar/
+          // legend/bottom bar already render fine over the live map), so
+          // this trades the shader's lensing/refraction bend for reliability
+          // everywhere the bar might float.
+          GlassPanel(
+            borderRadius: style.borderRadius,
+            tint: style.glassTint,
+            tintOpacity: style.glassTintOpacity,
+            blurSigma: style.blurSigma,
+            padding: EdgeInsets.zero,
             child: Container(
               padding: const EdgeInsets.all(6),
               child: LayoutBuilder(

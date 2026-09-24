@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
+import 'app_style.dart';
 import 'device_location.dart';
 import 'glass_panel.dart';
 import 'location_search.dart';
@@ -770,7 +771,7 @@ class _Legend extends StatelessWidget {
     return SizedBox(
       width: 250,
       child: GlassPanel(
-        borderRadius: 12,
+        borderRadius: 18,
         tint: panelTint,
         tintOpacity: isDark ? 0.5 : 0.7,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
@@ -1132,7 +1133,7 @@ class _BottomBar extends StatelessWidget {
         ? const Color(0xFF9AA0A8)
         : const Color(0xFF6B7078);
     return GlassPanel(
-      borderRadius: 18,
+      borderRadius: kCardRadius,
       tint: panelTint,
       tintOpacity: isDark ? 0.6 : 0.75,
       blurSigma: 20,
@@ -1192,22 +1193,38 @@ class _BottomBar extends StatelessWidget {
           const SizedBox(height: 6),
           Row(
             children: [
-              Icon(Icons.wb_twilight, size: 13, color: onPanelMuted),
+              Icon(
+                Icons.wb_twilight,
+                size: 13,
+                color: const Color(0xFFFFB74D).withValues(alpha: 0.9),
+              ),
               const SizedBox(width: 4),
               Text(
                 sunrise == null
                     ? '--:--'
                     : '${pad2(sunrise! ~/ 60)}:${pad2(sunrise! % 60)}',
-                style: TextStyle(color: onPanelMuted, fontSize: 10.5),
+                style: TextStyle(
+                  color: onPanelMuted,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               const SizedBox(width: 14),
-              Icon(Icons.nights_stay_outlined, size: 13, color: onPanelMuted),
+              Icon(
+                Icons.nights_stay_outlined,
+                size: 13,
+                color: const Color(0xFF8B93FF).withValues(alpha: 0.9),
+              ),
               const SizedBox(width: 4),
               Text(
                 sunset == null
                     ? '--:--'
                     : '${pad2(sunset! ~/ 60)}:${pad2(sunset! % 60)}',
-                style: TextStyle(color: onPanelMuted, fontSize: 10.5),
+                style: TextStyle(
+                  color: onPanelMuted,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ),

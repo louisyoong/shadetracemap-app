@@ -345,7 +345,7 @@ packages:
     source: hosted
     version: "0.1.1"
   liquid_glass_renderer:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: liquid_glass_renderer
       sha256: "789be157494b38cdef7607bb9b63e7fe3fab76fae16149e52fa313c2d858cb3f"
