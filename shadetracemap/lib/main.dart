@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'home_widget_service.dart';
 import 'onboarding_screen.dart';
 import 'root_shell.dart';
 
@@ -22,9 +23,34 @@ class ShadeTraceMapApp extends StatefulWidget {
   State<ShadeTraceMapApp> createState() => _ShadeTraceMapAppState();
 }
 
-class _ShadeTraceMapAppState extends State<ShadeTraceMapApp> {
+class _ShadeTraceMapAppState extends State<ShadeTraceMapApp>
+    with WidgetsBindingObserver {
   ThemeMode _themeMode = ThemeMode.dark;
   late bool _onboardingComplete = widget.onboardingComplete;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Fire-and-forget: seeds the home-screen widget with today's sunset as
+    // soon as the app has a location, without blocking first paint on it.
+    HomeWidgetService.init();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Keeps the widget's sunset time fresh across day boundaries / location
+    // changes without needing the user to open a specific tab for it.
+    if (state == AppLifecycleState.resumed) {
+      HomeWidgetService.sync();
+    }
+  }
 
   Future<void> _completeOnboarding() async {
     final prefs = await SharedPreferences.getInstance();
