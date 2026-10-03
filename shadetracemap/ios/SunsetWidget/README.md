@@ -1,9 +1,11 @@
 # Sunset home-screen widget — one-time Xcode setup
 
-`SunsetWidget.swift` in this folder is the widget's UI (current time via
-WidgetKit's own live clock, plus today's sunset written by the Flutter app).
-The Dart side (`lib/home_widget_service.dart`) is already wired up and
-syncing. What's left has to be done in Xcode once, because creating an
+`SunsetWidget.swift` in this folder is the widget's UI - a live countdown to
+sunset plotted on a golden "sun arc" graphic (styled after golden-hour
+widgets like Sun Seeker), plus the sunrise-sunset range and location. Both
+the small and medium sizes share it, sourced from data the Flutter app
+writes. The Dart side (`lib/home_widget_service.dart`) is already wired up
+and syncing. What's left has to be done in Xcode once, because creating an
 extension target and enabling an App Group both require Xcode itself (a
 signed-in Apple Developer team, and Xcode's own project-file management) —
 they can't be scripted safely from the command line.
@@ -56,7 +58,8 @@ Groups requires provisioning, which Xcode handles automatically with
    one the rest of the app already uses) and pushes today's sunset time
    into the widget's shared storage.
 3. On the device/simulator: long-press the home screen → **+** (top-left) →
-   search "Sunset" → add the small widget.
+   search "Sunset" → swipe between the small/medium sizes → add whichever
+   you want.
 
 If you ever change the app's bundle id or the App Group name, update the
 group string in all three places it's hardcoded: `Runner.entitlements`,
