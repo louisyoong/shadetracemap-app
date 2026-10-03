@@ -36,38 +36,60 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       body: Stack(
         fit: StackFit.expand,
         children: [
           Image.asset('assets/icon/onboadingtwo.png', fit: BoxFit.cover),
+          // A soft bottom scrim keeps the tagline/button legible regardless
+          // of what's underneath at that spot in the source image, instead
+          // of leaning entirely on the graphic's own baked-in darkness.
+          IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  stops: const [0.55, 1.0],
+                  colors: [
+                    Colors.black.withValues(alpha: 0),
+                    Colors.black.withValues(alpha: 0.55),
+                  ],
+                ),
+              ),
+            ),
+          ),
           SafeArea(
             child: Align(
               alignment: Alignment.bottomCenter,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(32, 0, 32, 24),
+                padding: const EdgeInsets.fromLTRB(32, 0, 32, 28),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      'Find real-time shade and sun exposure\nanywhere in the world.',
+                    const Text(
+                      'Find real-time shade and\nsun exposure anywhere in\nthe world.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 15,
-                        height: 1.4,
-                        color: isDark ? Colors.white70 : Colors.black54,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w600,
+                        height: 1.32,
+                        letterSpacing: -0.2,
+                        color: Colors.white,
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 28),
                     SizedBox(
                       width: double.infinity,
-                      height: 52,
+                      height: 54,
                       child: FilledButton(
                         style: FilledButton.styleFrom(
                           backgroundColor: _sunAccent,
                           foregroundColor: const Color(0xFF2A2620),
                           disabledBackgroundColor: _sunAccent,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(27),
+                          ),
                         ),
                         onPressed: _loading ? null : _handleGetStarted,
                         child: _loading
@@ -79,12 +101,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                   color: Color(0xFF2A2620),
                                 ),
                               )
-                            : const Text(
-                                'Get Started',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                            : const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    'Get Started',
+                                    style: TextStyle(
+                                      fontSize: 16.5,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  SizedBox(width: 8),
+                                  Icon(Icons.arrow_forward_rounded, size: 19),
+                                ],
                               ),
                       ),
                     ),

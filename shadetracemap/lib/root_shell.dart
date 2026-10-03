@@ -27,25 +27,15 @@ const _lightTabBarStyle = AppTabBarStyle(
   indicatorBorderColor: Color(0xB3FFFFFF), // white @ 70%
   indicatorGlowColor: Color(0xCCFFFFFF), // white @ 80%
   outerBorderColor: Color(0xD9FFFFFF), // white @ 85%
-  // Pushed refraction/thickness/chromatic aberration well past the
-  // package's own defaults (refractiveIndex 1.2, chromaticAberration 0.01,
-  // ambientStrength 0) - those defaults read as a plain frosted blur with
-  // barely any visible lensing. A stronger refractive index actually bends
-  // the map/content behind the bar like a real glass lens, the added
-  // chromatic aberration gives the faint colour-fringe at edges that's the
-  // signature of Apple's Liquid Glass look, and ambientStrength adds a soft
-  // glow instead of a flat tint.
-  glassSettings: LiquidGlassSettings(
-    thickness: 26.0,
-    blur: 12.0,
-    glassColor: Color(0xB3FFFFFF),
-    lightIntensity: 0.8,
-    lightAngle: 1.05,
-    ambientStrength: 0.18,
-    refractiveIndex: 1.9,
-    chromaticAberration: 0.05,
-    saturation: 1.6,
-  ),
+  // Plain frosted glass (the same BackdropFilter blur GlassPanel uses
+  // everywhere else) rather than the liquid_glass_renderer package's custom
+  // shader this used to use - that shader can't correctly render over a
+  // native platform view (e.g. the Shade Map's map) sitting behind it, and
+  // its lensing/glow settings pushed past the package's own defaults made
+  // that worse. A plain blur+tint is reliable everywhere the bar floats.
+  glassTint: Colors.white,
+  glassTintOpacity: 0.7,
+  blurSigma: 18,
   padding: EdgeInsets.zero,
 );
 
@@ -65,17 +55,10 @@ const _darkTabBarStyle = AppTabBarStyle(
   indicatorGlowColor: Color(0x24FFFFFF), // white @ 14%
   outerBorderColor: Color(0x1AFFFFFF), // white @ 10%
   outerBorderWidth: 1.2,
-  glassSettings: LiquidGlassSettings(
-    thickness: 28.0,
-    blur: 16.0,
-    glassColor: Color(0x80171F38),
-    lightIntensity: 0.9,
-    lightAngle: 2.0,
-    ambientStrength: 0.22,
-    refractiveIndex: 2.0,
-    chromaticAberration: 0.06,
-    saturation: 1.7,
-  ),
+  // See the light style's glassTint comment above.
+  glassTint: Color(0xFF171F38),
+  glassTintOpacity: 0.55,
+  blurSigma: 20,
   padding: EdgeInsets.zero,
 );
 

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'app_style.dart';
 import 'device_location.dart';
 import 'glass_panel.dart';
 import 'location_search.dart';
@@ -12,19 +13,10 @@ const _initialUtcOffset = 8; // Asia/Kuala_Lumpur, UTC+8 year-round (no DST)
 const _initialLat = 3.1412;
 const _initialLng = 101.68653;
 
-// Matches the Weather tab's "hero gradient" treatment: the background is
-// tinted live (there by temperature, here by how high the sun currently
-// is) - here with a light-mode and dark-mode palette, so it follows system
-// light/dark mode like the rest of the app rather than a single fixed look.
-const _lightText = Color(0xFF2A2620);
-const _lightTextMuted = Color(0x992A2620);
-const _darkText = Color(0xFFF3F1EC);
-const _darkTextMuted = Color(0x99F3F1EC);
-
 /// A standalone sun-path simulator: no map, just the astronomy. Lets you
-/// scrub date/time/location and see the sun's full-day arc (azimuth vs.
-/// altitude - the standard "sun path diagram" format used in solar design)
-/// plus where "now" sits on it.
+/// scrub date/time/location and see the sun's full-day journey as a single
+/// golden arc from sunrise to sunset (altitude over time, the way Apple
+/// Weather/Lumy present a sun-path widget) plus where "now" sits on it.
 class SunSimulatorScreen extends StatefulWidget {
   const SunSimulatorScreen({super.key});
 
@@ -46,7 +38,9 @@ class _SunSimulatorScreenState extends State<SunSimulatorScreen> {
 
   final _locationSearch = LocationSearchController();
 
-  List<List<double>> _dayPath = const [];
+  // Altitude sampled every 8 minutes across the full day (181 points), used
+  // to draw the day's sun arc.
+  List<double> _dayAltitudes = const [];
   SunTimes _sunTimes = const SunTimes(null, null);
   String _lastPathKey = '';
 
@@ -128,21 +122,30 @@ class _SunSimulatorScreenState extends State<SunSimulatorScreen> {
     if (key == _lastPathKey) return;
     _lastPathKey = key;
 
-    final points = <List<double>>[];
+    final altitudes = <double>[];
     for (var m = 0; m <= 1440; m += 8) {
       final t = DateTime.fromMillisecondsSinceEpoch(
         dayStartMs + m * 60000,
         isUtc: true,
       );
-      final pos = sunPosition(t, _lat, _lng);
-      points.add([pos.azimuth, pos.altitude]);
+      altitudes.add(sunPosition(t, _lat, _lng).altitude);
     }
-    _dayPath = points;
+    _dayAltitudes = altitudes;
     _sunTimes = findSunriseSunset(dayStartMs, _lat, _lng);
   }
 
   void _onWallClockOrLocationChanged() {
     setState(_recomputeDayPath);
+  }
+
+  /// "Xh Ym of daylight" from this day's sunrise/sunset, or null at
+  /// latitudes/dates with no sunrise or sunset (polar day/night).
+  String? _daylightText() {
+    final sunrise = _sunTimes.sunrise;
+    final sunset = _sunTimes.sunset;
+    if (sunrise == null || sunset == null || sunset <= sunrise) return null;
+    final mins = sunset - sunrise;
+    return '${mins ~/ 60}h ${pad2(mins % 60)}m of daylight';
   }
 
   Future<void> _pickDate() async {
@@ -210,8 +213,8 @@ class _SunSimulatorScreenState extends State<SunSimulatorScreen> {
     );
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final panelTint = isDark ? const Color(0xFF15171C) : Colors.white;
-    final onPanel = isDark ? _darkText : _lightText;
-    final onPanelMuted = isDark ? _darkTextMuted : _lightTextMuted;
+    final onPanel = textColorFor(isDark);
+    final onPanelMuted = textMutedFor(isDark);
     return Container(
       decoration: BoxDecoration(gradient: _sunTint(pos.altitude, isDark)),
       child: SafeArea(
@@ -226,34 +229,62 @@ class _SunSimulatorScreenState extends State<SunSimulatorScreen> {
                 hintText: 'Simulate any place worldwide…',
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Text(
-                'Sun path — $_locationLabel',
-                style: TextStyle(color: onPanelMuted, fontSize: 12),
+            Center(
+              child: LocationChip(
+                label: _locationLabel,
+                textColor: onPanel,
+                isDark: isDark,
               ),
             ),
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: GlassPanel(
-                  borderRadius: 16,
+                  borderRadius: kCardRadius,
                   tint: panelTint,
                   tintOpacity: 0.6,
                   blurSigma: 20,
-                  padding: const EdgeInsets.all(12),
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      return CustomPaint(
-                        size: Size(constraints.maxWidth, constraints.maxHeight),
-                        painter: _SunPathPainter(
-                          path: _dayPath,
-                          sunPos: pos,
-                          labelColor: onPanelMuted,
-                          isDark: isDark,
+                  padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          SectionLabel('TODAY\'S SUN PATH', color: onPanelMuted),
+                          if (_daylightText() case final text?)
+                            Text(
+                              text,
+                              style: TextStyle(
+                                color: onPanelMuted,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Expanded(
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            return CustomPaint(
+                              size: Size(
+                                constraints.maxWidth,
+                                constraints.maxHeight,
+                              ),
+                              painter: _SunArcPainter(
+                                altitudes: _dayAltitudes,
+                                nowMinutes: _minutes,
+                                sunPos: pos,
+                                sunTimes: _sunTimes,
+                                labelColor: onPanelMuted,
+                                isDark: isDark,
+                              ),
+                            );
+                          },
                         ),
-                      );
-                    },
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -266,11 +297,11 @@ class _SunSimulatorScreenState extends State<SunSimulatorScreen> {
                 12 + MediaQuery.of(context).padding.bottom,
               ),
               child: GlassPanel(
-                borderRadius: 18,
+                borderRadius: kCardRadius,
                 tint: panelTint,
                 tintOpacity: 0.6,
                 blurSigma: 20,
-                padding: const EdgeInsets.fromLTRB(18, 14, 18, 12),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 14),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -286,8 +317,9 @@ class _SunSimulatorScreenState extends State<SunSimulatorScreen> {
                               formatBigTime(_minutes),
                               style: TextStyle(
                                 color: onPanel,
-                                fontSize: 19,
-                                fontWeight: FontWeight.bold,
+                                fontSize: 24,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: -0.5,
                               ),
                             ),
                             Text(
@@ -350,54 +382,74 @@ class _SunSimulatorScreenState extends State<SunSimulatorScreen> {
                         onChanged: (v) => setState(() => _minutes = v.round()),
                       ),
                     ),
+                    const SizedBox(height: 2),
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        _Readout(
-                          label: 'ALTITUDE',
-                          value: '${pos.altitude.toStringAsFixed(1)}°',
-                          muted: onPanelMuted,
-                          isDark: isDark,
+                        Expanded(
+                          child: StatTile(
+                            icon: Icons.wb_sunny_outlined,
+                            label: 'ALTITUDE',
+                            value: '${pos.altitude.toStringAsFixed(1)}°',
+                            textColor: onPanel,
+                            textMuted: onPanelMuted,
+                            accent: const Color(0xFFFFB74D),
+                          ),
                         ),
-                        _Readout(
-                          label: 'AZIMUTH',
-                          value: '${pos.azimuth.toStringAsFixed(0)}°',
-                          muted: onPanelMuted,
-                          isDark: isDark,
+                        Expanded(
+                          child: StatTile(
+                            icon: Icons.explore_outlined,
+                            label: 'AZIMUTH',
+                            value: '${pos.azimuth.toStringAsFixed(0)}°',
+                            textColor: onPanel,
+                            textMuted: onPanelMuted,
+                            accent: const Color(0xFF3B7CFF),
+                          ),
                         ),
                         // Clear-sky direct irradiance - the "how strong is
                         // the sun right now" readout, same idea as the
                         // W/m² figures solar-analysis tools like ShadeMap /
                         // Shadowmap surface.
-                        _Readout(
-                          label: 'IRRADIANCE',
-                          value:
-                              '${solarIrradianceWm2(pos.altitude).round()} W/m²',
-                          muted: onPanelMuted,
-                          isDark: isDark,
+                        Expanded(
+                          child: StatTile(
+                            icon: Icons.bolt_outlined,
+                            label: 'IRRADIANCE',
+                            value:
+                                '${solarIrradianceWm2(pos.altitude).round()} W/m²',
+                            textColor: onPanel,
+                            textMuted: onPanelMuted,
+                            accent: const Color(0xFFFFCA28),
+                          ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 14),
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        _Readout(
-                          label: 'SUNRISE',
-                          value: _sunTimes.sunrise == null
-                              ? '--:--'
-                              : '${pad2(_sunTimes.sunrise! ~/ 60)}:${pad2(_sunTimes.sunrise! % 60)}',
-                          muted: onPanelMuted,
-                          isDark: isDark,
+                        Expanded(
+                          child: StatTile(
+                            icon: Icons.wb_twilight,
+                            label: 'SUNRISE',
+                            value: _sunTimes.sunrise == null
+                                ? '--:--'
+                                : '${pad2(_sunTimes.sunrise! ~/ 60)}:${pad2(_sunTimes.sunrise! % 60)}',
+                            textColor: onPanel,
+                            textMuted: onPanelMuted,
+                            accent: const Color(0xFFFFB74D),
+                          ),
                         ),
-                        _Readout(
-                          label: 'SUNSET',
-                          value: _sunTimes.sunset == null
-                              ? '--:--'
-                              : '${pad2(_sunTimes.sunset! ~/ 60)}:${pad2(_sunTimes.sunset! % 60)}',
-                          muted: onPanelMuted,
-                          isDark: isDark,
+                        Expanded(
+                          child: StatTile(
+                            icon: Icons.nights_stay_outlined,
+                            label: 'SUNSET',
+                            value: _sunTimes.sunset == null
+                                ? '--:--'
+                                : '${pad2(_sunTimes.sunset! ~/ 60)}:${pad2(_sunTimes.sunset! % 60)}',
+                            textColor: onPanel,
+                            textMuted: onPanelMuted,
+                            accent: const Color(0xFF8B93FF),
+                          ),
                         ),
+                        const Expanded(child: SizedBox()),
                       ],
                     ),
                   ],
@@ -407,40 +459,6 @@ class _SunSimulatorScreenState extends State<SunSimulatorScreen> {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _Readout extends StatelessWidget {
-  const _Readout({
-    required this.label,
-    required this.value,
-    required this.muted,
-    required this.isDark,
-  });
-  final String label;
-  final String value;
-  final Color muted;
-  final bool isDark;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(color: muted, fontSize: 9.5, letterSpacing: 0.4),
-        ),
-        Text(
-          value,
-          style: TextStyle(
-            color: isDark ? const Color(0xFFFFD580) : const Color(0xFFC66A00),
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
     );
   }
 }
@@ -518,43 +536,65 @@ class _RoundIconButton extends StatelessWidget {
           ),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Icon(icon, size: size, color: isDark ? _darkText : _lightText),
+        child: Icon(icon, size: size, color: textColorFor(isDark)),
       ),
     );
   }
 }
 
-/// Draws the standard "sun path diagram": azimuth (compass direction) on
-/// the X axis, altitude on the Y axis, the current day's full path as a
-/// curve, and a marker for wherever "now" sits on it.
-class _SunPathPainter extends CustomPainter {
-  _SunPathPainter({
-    required this.path,
+enum _HAlign { left, center }
+
+/// Draws the day's "sun arc": altitude over the course of the day as one
+/// dome-shaped golden curve from sunrise to sunset - the same idea Apple
+/// Weather/Lumy use for their own sun-path widgets - with the currently
+/// scrubbed time marked as a glowing dot on it. Reads at a glance without
+/// needing to parse a technical azimuth-vs-altitude chart, while still
+/// driven by the same real per-minute altitude samples the old chart used.
+class _SunArcPainter extends CustomPainter {
+  _SunArcPainter({
+    required this.altitudes,
+    required this.nowMinutes,
     required this.sunPos,
+    required this.sunTimes,
     required this.labelColor,
     required this.isDark,
   });
 
-  final List<List<double>> path;
+  /// Altitude sampled every [_stepMinutes] minutes across the day.
+  final List<double> altitudes;
+  final int nowMinutes;
   final SunPosition sunPos;
+  final SunTimes sunTimes;
   final Color labelColor;
   final bool isDark;
 
-  static const _minAltitude = -20.0;
-  static const _maxAltitude = 90.0;
-
-  double _xFor(double azimuth, double width) => width * (azimuth / 360);
-  double _yFor(double altitude, double height) {
-    final t = (altitude - _minAltitude) / (_maxAltitude - _minAltitude);
-    return height * (1 - t.clamp(0, 1));
-  }
+  static const _stepMinutes = 8;
+  static const _minAltitude = -16.0;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final horizonY = _yFor(0, size.height);
+    if (altitudes.isEmpty) return;
 
-    // Sky gradient: warm near the horizon, cooler toward the zenith; dims
-    // overall when the sun itself is below the horizon right now.
+    // Scale the vertical axis to this day's own peak (with headroom) rather
+    // than a fixed 0-90, so the dome always fills the card nicely whether
+    // it's the tropics (sun near-overhead) or a high latitude (sun always
+    // low) instead of looking cramped or oversized.
+    var peak = 10.0;
+    for (final a in altitudes) {
+      if (a > peak) peak = a;
+    }
+    final maxAltitude = peak + 12;
+
+    double xFor(int minutes) => size.width * (minutes / 1440);
+    double yFor(double altitude) {
+      final t = (altitude - _minAltitude) / (maxAltitude - _minAltitude);
+      return size.height * (1 - t.clamp(0.0, 1.0));
+    }
+
+    final horizonY = yFor(0);
+
+    // Sky fill: warm near the horizon, cooler toward the top; dims overall
+    // when the scrubbed instant itself is below the horizon.
     final belowHorizon = sunPos.altitude <= 0.5;
     final skyTop = isDark
         ? (belowHorizon ? const Color(0xFF11131A) : const Color(0xFF1B2540))
@@ -562,7 +602,6 @@ class _SunPathPainter extends CustomPainter {
     final skyHorizon = isDark
         ? (belowHorizon ? const Color(0xFF232A3D) : const Color(0xFF3A2E45))
         : (belowHorizon ? const Color(0xFFEDEFF3) : const Color(0xFFFFE3C2));
-
     canvas.drawRect(
       Offset.zero & size,
       Paint()
@@ -572,110 +611,222 @@ class _SunPathPainter extends CustomPainter {
           colors: [skyTop, skyHorizon],
         ).createShader(Offset.zero & size),
     );
-
-    // Ground below the horizon line.
     canvas.drawRect(
       Rect.fromLTRB(0, horizonY, size.width, size.height),
       Paint()
         ..color = isDark ? const Color(0xFF0C0E12) : const Color(0xFFCED3D9),
     );
 
-    // Altitude gridlines at 0/30/60/90.
-    final gridPaint = Paint()
-      ..color = labelColor.withValues(alpha: 0.18)
-      ..strokeWidth = 1;
-    for (final alt in [0.0, 30.0, 60.0, 90.0]) {
-      final y = _yFor(alt, size.height);
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
-      _drawText(canvas, '${alt.toInt()}°', Offset(4, y - 13), labelColor, 9);
-    }
-
-    // Compass labels along the horizon.
-    for (final entry in {
-      0.0: 'N',
-      90.0: 'E',
-      180.0: 'S',
-      270.0: 'W',
-      360.0: 'N',
-    }.entries) {
-      final x = _xFor(entry.key, size.width);
+    // Hour ticks every 6 hours along the horizon (12A/6A/12P/6P) - plain
+    // clock time instead of compass bearings, so reading the chart doesn't
+    // require knowing which way is east.
+    for (var m = 0; m <= 1440; m += 360) {
+      final x = xFor(m);
       canvas.drawLine(
-        Offset(x, horizonY - 4),
-        Offset(x, horizonY + 4),
-        Paint()..color = labelColor.withValues(alpha: 0.35),
+        Offset(x, horizonY - 3),
+        Offset(x, horizonY + 3),
+        Paint()..color = labelColor.withValues(alpha: 0.3),
       );
       _drawText(
         canvas,
-        entry.value,
-        Offset(x - 4, math.min(horizonY + 8, size.height - 14)),
-        labelColor,
-        11,
-        bold: true,
+        _hourLabel(m),
+        Offset(x, math.min(horizonY + 8, size.height - 12)),
+        labelColor.withValues(alpha: 0.75),
+        9.5,
+        align: _HAlign.center,
       );
     }
 
-    // The day's path. Near the equator the sun can cross due north (the
-    // azimuth=0/360 branch cut) close to solar noon - that's a tiny real
-    // step, not a jump, so instead of just breaking the line there (which
-    // left a gap looking like two disconnected curves), extend the outgoing
-    // segment to the edge it's heading toward and resume the new one from
-    // the opposite edge, at the same altitude, so the wrap reads as one
-    // continuous line.
-    if (path.length > 1) {
-      final linePaint = Paint()
-        ..color = const Color(0xFFFFD580)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.5
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round;
-      Path? segment;
-      double? lastAz;
-      for (final p in path) {
-        final az = p[0], alt = p[1];
-        final x = _xFor(az, size.width);
-        final y = _yFor(alt, size.height);
-        if (segment == null) {
-          segment = Path()..moveTo(x, y);
-        } else if (lastAz != null && (az - lastAz).abs() > 180) {
-          final goingUp = lastAz > az; // e.g. 359 -> 1 really means 359 -> 361
-          final edgeAz = goingUp ? 360.0 : 0.0;
-          final otherEdgeAz = goingUp ? 0.0 : 360.0;
-          segment.lineTo(_xFor(edgeAz, size.width), y);
-          canvas.drawPath(segment, linePaint);
-          segment = Path()..moveTo(_xFor(otherEdgeAz, size.width), y);
-          segment.lineTo(x, y);
-        } else {
-          segment.lineTo(x, y);
+    // Split the day into contiguous "above horizon" / "below horizon" runs
+    // so each draws as one continuous stroke - matters at high latitudes
+    // where a day can have more than one sunrise/sunset crossing, or none.
+    final dayRuns = <List<Offset>>[];
+    final nightRuns = <List<Offset>>[];
+    List<Offset>? currentDay;
+    List<Offset>? currentNight;
+    for (var m = 0; m <= 1440; m += _stepMinutes) {
+      final alt = altitudes[(m ~/ _stepMinutes).clamp(0, altitudes.length - 1)];
+      final pt = Offset(xFor(m), yFor(alt));
+      if (alt >= 0) {
+        (currentDay ??= []).add(pt);
+        if (currentNight != null) {
+          nightRuns.add(currentNight);
+          currentNight = null;
         }
-        lastAz = az;
+      } else {
+        (currentNight ??= []).add(pt);
+        if (currentDay != null) {
+          dayRuns.add(currentDay);
+          currentDay = null;
+        }
       }
-      if (segment != null) canvas.drawPath(segment, linePaint);
+    }
+    if (currentDay != null) dayRuns.add(currentDay);
+    if (currentNight != null) nightRuns.add(currentNight);
+
+    // A faint night dip so the arc still reads as one continuous day/night
+    // cycle rather than the curve simply stopping at the horizon.
+    final nightPaint = Paint()
+      ..color = (isDark ? Colors.white : Colors.black).withValues(alpha: 0.16)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round;
+    for (final run in nightRuns) {
+      if (run.length < 2) continue;
+      final line = Path()..moveTo(run.first.dx, run.first.dy);
+      for (final pt in run.skip(1)) {
+        line.lineTo(pt.dx, pt.dy);
+      }
+      canvas.drawPath(line, nightPaint);
     }
 
-    // Current sun position marker.
-    final sx = _xFor(sunPos.azimuth, size.width);
-    final sy = _yFor(sunPos.altitude, size.height);
+    // The golden daylight dome: a soft fill underneath plus a warm gradient
+    // stroke along its length.
+    for (final run in dayRuns) {
+      if (run.length < 2) continue;
+      final stroke = Path()..moveTo(run.first.dx, run.first.dy);
+      for (final pt in run.skip(1)) {
+        stroke.lineTo(pt.dx, pt.dy);
+      }
+      final fill = Path.from(stroke)
+        ..lineTo(run.last.dx, horizonY)
+        ..lineTo(run.first.dx, horizonY)
+        ..close();
+      final bounds = Rect.fromLTRB(run.first.dx, 0, run.last.dx, horizonY);
+      canvas.drawPath(
+        fill,
+        Paint()
+          ..shader = LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              const Color(0xFFFFD580).withValues(alpha: isDark ? 0.22 : 0.32),
+              const Color(0xFFFFD580).withValues(alpha: 0.0),
+            ],
+          ).createShader(bounds),
+      );
+      canvas.drawPath(
+        stroke,
+        Paint()
+          ..shader = const LinearGradient(
+            colors: [Color(0xFFFFB74D), Color(0xFFFFE0A3)],
+          ).createShader(bounds)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round,
+      );
+    }
+
+    _drawEdgeMarker(
+      canvas,
+      sunTimes.sunrise,
+      horizonY,
+      xFor,
+      Icons.wb_twilight,
+      const Color(0xFFFFB74D),
+      labelColor,
+    );
+    _drawEdgeMarker(
+      canvas,
+      sunTimes.sunset,
+      horizonY,
+      xFor,
+      Icons.nights_stay_outlined,
+      const Color(0xFF8B93FF),
+      labelColor,
+    );
+
+    // Current position: a glowing marker plus a thin guide line down to the
+    // horizon, so it's obvious where "now" sits along the whole day.
+    final nowX = xFor(nowMinutes);
+    final nowY = yFor(sunPos.altitude);
     final aboveHorizon = sunPos.altitude > 0.5;
+    canvas.drawLine(
+      Offset(nowX, nowY),
+      Offset(nowX, horizonY),
+      Paint()
+        ..color = (aboveHorizon ? const Color(0xFFFFB74D) : labelColor)
+            .withValues(alpha: 0.35)
+        ..strokeWidth = 1.2,
+    );
+    if (aboveHorizon) {
+      canvas.drawCircle(
+        Offset(nowX, nowY),
+        16,
+        Paint()..color = const Color(0xFFFFD580).withValues(alpha: 0.3),
+      );
+    }
     canvas.drawCircle(
-      Offset(sx, sy),
-      9,
+      Offset(nowX, nowY),
+      8,
       Paint()..color = aboveHorizon ? const Color(0xFFFFD580) : Colors.white38,
     );
     canvas.drawCircle(
-      Offset(sx, sy),
-      9,
+      Offset(nowX, nowY),
+      8,
       Paint()
         ..color = Colors.black.withValues(alpha: 0.25)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.2,
     );
-    if (aboveHorizon) {
-      canvas.drawCircle(
-        Offset(sx, sy),
-        16,
-        Paint()..color = const Color(0xFFFFD580).withValues(alpha: 0.25),
-      );
-    }
+  }
+
+  /// A small labelled marker at the horizon for sunrise/sunset, with an
+  /// icon inside so the two ends of the arc are identifiable without
+  /// reading the time label - same painted-icon technique the compass
+  /// dial's sun/moon marker uses.
+  void _drawEdgeMarker(
+    Canvas canvas,
+    int? minutes,
+    double horizonY,
+    double Function(int) xFor,
+    IconData icon,
+    Color accent,
+    Color labelColor,
+  ) {
+    if (minutes == null) return;
+    final center = Offset(xFor(minutes), horizonY);
+    canvas.drawCircle(center, 11, Paint()..color = accent);
+    canvas.drawCircle(
+      center,
+      11,
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.85)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4,
+    );
+    final iconPainter = TextPainter(textDirection: TextDirection.ltr)
+      ..text = TextSpan(
+        text: String.fromCharCode(icon.codePoint),
+        style: TextStyle(
+          fontSize: 12,
+          fontFamily: icon.fontFamily,
+          package: icon.fontPackage,
+          color: Colors.white,
+        ),
+      )
+      ..layout();
+    iconPainter.paint(
+      canvas,
+      center - Offset(iconPainter.width / 2, iconPainter.height / 2),
+    );
+    _drawText(
+      canvas,
+      '${pad2(minutes ~/ 60)}:${pad2(minutes % 60)}',
+      Offset(center.dx, horizonY + 15),
+      labelColor,
+      9.5,
+      bold: true,
+      align: _HAlign.center,
+    );
+  }
+
+  String _hourLabel(int minutes) {
+    final h = minutes ~/ 60;
+    if (h == 0 || h == 24) return '12A';
+    if (h == 12) return '12P';
+    return h < 12 ? '${h}A' : '${h - 12}P';
   }
 
   void _drawText(
@@ -685,6 +836,7 @@ class _SunPathPainter extends CustomPainter {
     Color color,
     double fontSize, {
     bool bold = false,
+    _HAlign align = _HAlign.left,
   }) {
     final painter = TextPainter(
       text: TextSpan(
@@ -697,14 +849,17 @@ class _SunPathPainter extends CustomPainter {
       ),
       textDirection: TextDirection.ltr,
     )..layout();
-    painter.paint(canvas, offset);
+    final dx = align == _HAlign.center
+        ? offset.dx - painter.width / 2
+        : offset.dx;
+    painter.paint(canvas, Offset(dx, offset.dy));
   }
 
   @override
-  bool shouldRepaint(covariant _SunPathPainter oldDelegate) {
-    return oldDelegate.path != path ||
+  bool shouldRepaint(covariant _SunArcPainter oldDelegate) {
+    return oldDelegate.altitudes != altitudes ||
+        oldDelegate.nowMinutes != nowMinutes ||
         oldDelegate.sunPos.altitude != sunPos.altitude ||
-        oldDelegate.sunPos.azimuth != sunPos.azimuth ||
         oldDelegate.isDark != isDark;
   }
 }

@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'app_style.dart';
 import 'device_location.dart';
 import 'glass_panel.dart';
 import 'location_search.dart';
@@ -11,10 +12,8 @@ import 'weather_api.dart';
 const _initialLat = 3.1412;
 const _initialLng = 101.68653;
 
-const _lightText = Color(0xFF2A2620);
-const _lightTextMuted = Color(0x992A2620);
-const _darkText = Color(0xFFF3F1EC);
-const _darkTextMuted = Color(0x99F3F1EC);
+const _sunriseAccent = Color(0xFFFFB74D);
+const _sunsetAccent = Color(0xFF8B93FF);
 
 /// A location-scoped weather preview: today's sunrise/sunset, sunshine
 /// duration, UV index and temperature, pulled from Open-Meteo's free
@@ -119,8 +118,8 @@ class _WeatherScreenState extends State<WeatherScreen>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? _darkText : _lightText;
-    final textMuted = isDark ? _darkTextMuted : _lightTextMuted;
+    final textColor = textColorFor(isDark);
+    final textMuted = textMutedFor(isDark);
     return FutureBuilder<WeatherData>(
       future: _future,
       builder: (context, snapshot) {
@@ -206,26 +205,23 @@ class _WeatherScreenState extends State<WeatherScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  _locationLabel,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: textColor,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                  ),
+                LocationChip(
+                  label: _locationLabel,
+                  textColor: textColor,
+                  isDark: isDark,
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 14),
                 Text(
                   '${w.temperature.round()}°',
                   style: TextStyle(
                     color: textColor,
-                    fontSize: 96,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 100,
+                    fontWeight: FontWeight.w700,
                     height: 1,
+                    letterSpacing: -2,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Text(
                   weatherCodeDescription(w.weatherCode),
                   style: TextStyle(
@@ -234,13 +230,13 @@ class _WeatherScreenState extends State<WeatherScreen>
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 Text(
                   'Feels like ${w.feelsLike.round()}°  •  '
                   'H:${w.temperatureMax.round()}° L:${w.temperatureMin.round()}°',
                   style: TextStyle(
                     color: textMuted,
-                    fontSize: 14,
+                    fontSize: 13,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -256,68 +252,75 @@ class _WeatherScreenState extends State<WeatherScreen>
             12 + MediaQuery.of(context).padding.bottom,
           ),
           child: GlassPanel(
-            borderRadius: 18,
+            borderRadius: kCardRadius,
             tint: stripTint,
             tintOpacity: stripOpacity,
             blurSigma: 20,
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+            padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 10),
             child: Column(
               children: [
                 Row(
                   children: [
                     Expanded(
-                      child: _StripItem(
+                      child: StatTile(
                         icon: Icons.wb_twilight,
                         label: 'SUNRISE',
                         value: _formatTime(w.sunrise),
                         textColor: textColor,
                         textMuted: textMuted,
+                        accent: _sunriseAccent,
                       ),
                     ),
                     Expanded(
-                      child: _StripItem(
+                      child: StatTile(
                         icon: Icons.nights_stay_outlined,
                         label: 'SUNSET',
                         value: _formatTime(w.sunset),
                         textColor: textColor,
                         textMuted: textMuted,
+                        accent: _sunsetAccent,
                       ),
                     ),
                     Expanded(
-                      child: _StripItem(
+                      child: StatTile(
                         icon: Icons.timelapse,
                         label: 'SUNSHINE',
                         value: _formatDuration(w.sunshineDuration),
                         textColor: textColor,
                         textMuted: textMuted,
+                        accent: _sunriseAccent,
                       ),
                     ),
                     Expanded(
-                      child: _StripItem(
+                      child: StatTile(
                         icon: Icons.wb_sunny,
                         label: 'UV INDEX',
                         value: w.uvIndexMax.toStringAsFixed(1),
                         textColor: textColor,
                         textMuted: textMuted,
                         valueColor: Color(uvIndexCategory(w.uvIndexMax).color),
+                        accent: Color(uvIndexCategory(w.uvIndexMax).color),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 18),
+                Divider(height: 1, color: textMuted.withValues(alpha: 0.18)),
+                const SizedBox(height: 18),
                 Row(
                   children: [
                     Expanded(
-                      child: _StripItem(
+                      child: StatTile(
                         icon: Icons.thermostat,
                         label: 'FEELS LIKE',
                         value: '${w.feelsLike.round()}°',
                         textColor: textColor,
                         textMuted: textMuted,
+                        accent: const Color(0xFFFF7043),
                       ),
                     ),
                     Expanded(
-                      child: _StripItem(
+                      child: StatTile(
                         icon: Icons.arrow_upward,
                         label: 'HIGH / LOW',
                         value:
@@ -325,24 +328,27 @@ class _WeatherScreenState extends State<WeatherScreen>
                             '${w.temperatureMin.round()}°',
                         textColor: textColor,
                         textMuted: textMuted,
+                        accent: const Color(0xFF64B5F6),
                       ),
                     ),
                     Expanded(
-                      child: _StripItem(
+                      child: StatTile(
                         icon: Icons.water_drop_outlined,
                         label: 'HUMIDITY',
                         value: '${w.humidity}%',
                         textColor: textColor,
                         textMuted: textMuted,
+                        accent: const Color(0xFF29B6F6),
                       ),
                     ),
                     Expanded(
-                      child: _StripItem(
+                      child: StatTile(
                         icon: Icons.air,
                         label: 'WIND',
                         value: '${w.windSpeed.round()} km/h',
                         textColor: textColor,
                         textMuted: textMuted,
+                        accent: const Color(0xFF4DB6AC),
                       ),
                     ),
                   ],
@@ -419,44 +425,3 @@ String _formatDuration(Duration d) {
   return '${h}h ${pad2(m)}m';
 }
 
-class _StripItem extends StatelessWidget {
-  const _StripItem({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.textColor,
-    required this.textMuted,
-    Color? valueColor,
-  }) : valueColor = valueColor ?? textColor;
-
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color textColor;
-  final Color textMuted;
-  final Color valueColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: textColor, size: 18),
-        const SizedBox(height: 6),
-        Text(
-          value,
-          style: TextStyle(
-            color: valueColor,
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: TextStyle(color: textMuted, fontSize: 8.5, letterSpacing: 0.3),
-        ),
-      ],
-    );
-  }
-}

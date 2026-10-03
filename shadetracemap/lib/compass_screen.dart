@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_compass/flutter_compass.dart';
 
+import 'app_style.dart';
 import 'device_location.dart';
 import 'glass_panel.dart';
 import 'location_search.dart' show reverseGeocodeLabel;
@@ -12,11 +13,6 @@ import 'sun_math.dart';
 
 const _initialLat = 3.1412;
 const _initialLng = 101.68653;
-
-const _lightText = Color(0xFF2A2620);
-const _lightTextMuted = Color(0x992A2620);
-const _darkText = Color(0xFFF3F1EC);
-const _darkTextMuted = Color(0x99F3F1EC);
 
 /// A live sun-finding compass: as the phone turns, the sun's marker slides
 /// around the dial to always point at its real-world direction, using the
@@ -184,8 +180,8 @@ class _CompassScreenState extends State<CompassScreen>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? _darkText : _lightText;
-    final textMuted = isDark ? _darkTextMuted : _lightTextMuted;
+    final textColor = textColorFor(isDark);
+    final textMuted = textMutedFor(isDark);
 
     final pos = sunPosition(_now, _lat, _lng);
     final dayStartMs = localMidnightMs(
@@ -236,13 +232,11 @@ class _CompassScreenState extends State<CompassScreen>
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-              child: Text(
-                _locationLabel,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: textColor,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
+              child: Center(
+                child: LocationChip(
+                  label: _locationLabel,
+                  textColor: textColor,
+                  isDark: isDark,
                 ),
               ),
             ),
@@ -296,14 +290,33 @@ class _CompassScreenState extends State<CompassScreen>
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Text(
-                facingMessage,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: textColor,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (aboveHorizon && _heading != null)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: Icon(
+                        _facingInfo(pos).facing
+                            ? Icons.check_circle_rounded
+                            : Icons.navigation_rounded,
+                        size: 15,
+                        color: textColor,
+                      ),
+                    ),
+                  Flexible(
+                    child: Text(
+                      facingMessage,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: textColor,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             if (_compassUnavailable) ...[
@@ -327,50 +340,58 @@ class _CompassScreenState extends State<CompassScreen>
                 12 + MediaQuery.of(context).padding.bottom,
               ),
               child: GlassPanel(
-                borderRadius: 18,
+                borderRadius: kCardRadius,
                 tint: isDark ? const Color(0xFF15171C) : Colors.white,
                 tintOpacity: isDark ? 0.55 : 0.4,
                 blurSigma: 20,
                 padding: const EdgeInsets.symmetric(
-                  vertical: 16,
+                  vertical: 18,
                   horizontal: 8,
                 ),
                 child: Row(
                   children: [
                     Expanded(
-                      child: _Readout(
+                      child: StatTile(
+                        icon: Icons.wb_sunny_outlined,
                         label: 'ALTITUDE',
                         value: '${pos.altitude.toStringAsFixed(1)}°',
                         textColor: textColor,
                         textMuted: textMuted,
+                        accent: const Color(0xFFFFB74D),
                       ),
                     ),
                     Expanded(
-                      child: _Readout(
+                      child: StatTile(
+                        icon: Icons.explore_outlined,
                         label: 'SUN AZIMUTH',
                         value: '${pos.azimuth.toStringAsFixed(0)}°',
                         textColor: textColor,
                         textMuted: textMuted,
+                        accent: const Color(0xFF3B7CFF),
                       ),
                     ),
                     Expanded(
-                      child: _Readout(
+                      child: StatTile(
+                        icon: Icons.navigation_outlined,
                         label: 'HEADING',
                         value: _heading == null
                             ? '--°'
                             : '${_heading!.toStringAsFixed(0)}°',
                         textColor: textColor,
                         textMuted: textMuted,
+                        accent: const Color(0xFF7E57C2),
                       ),
                     ),
                     Expanded(
-                      child: _Readout(
+                      child: StatTile(
+                        icon: Icons.nights_stay_outlined,
                         label: 'SUNSET',
                         value: sunTimes.sunset == null
                             ? '--:--'
                             : '${pad2(sunTimes.sunset! ~/ 60)}:${pad2(sunTimes.sunset! % 60)}',
                         textColor: textColor,
                         textMuted: textMuted,
+                        accent: const Color(0xFF8B93FF),
                       ),
                     ),
                   ],
@@ -380,42 +401,6 @@ class _CompassScreenState extends State<CompassScreen>
           ],
         ),
       ),
-    );
-  }
-}
-
-class _Readout extends StatelessWidget {
-  const _Readout({
-    required this.label,
-    required this.value,
-    required this.textColor,
-    required this.textMuted,
-  });
-
-  final String label;
-  final String value;
-  final Color textColor;
-  final Color textMuted;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          value,
-          style: TextStyle(
-            color: textColor,
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: TextStyle(color: textMuted, fontSize: 8.5, letterSpacing: 0.3),
-        ),
-      ],
     );
   }
 }
