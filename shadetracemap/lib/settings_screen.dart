@@ -1,9 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'app_style.dart';
 import 'glass_panel.dart';
 
 const _accent = Color(0xFFFFB300);
+
+const _linkedInUrl = 'https://www.linkedin.com/in/louis-yoong-a2370ab7';
+
+Future<void> _openLinkedIn() async {
+  final uri = Uri.parse(_linkedInUrl);
+  if (await canLaunchUrl(uri)) {
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+}
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({
@@ -153,7 +163,7 @@ class SettingsScreen extends StatelessWidget {
                   _InfoRow(
                     icon: Icons.info_outline,
                     label: 'Version',
-                    value: '1.2.0',
+                    value: '2.0.0',
                   ),
                   Divider(
                     height: 1,
@@ -163,6 +173,15 @@ class SettingsScreen extends StatelessWidget {
                     icon: Icons.favorite_border,
                     label: 'Made for sun-chasers',
                     value: '☀️',
+                  ),
+                  Divider(
+                    height: 1,
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.08),
+                  ),
+                  _LinkRow(
+                    icon: Icons.link,
+                    label: 'Contact via LinkedIn',
+                    onTap: _openLinkedIn,
                   ),
                 ],
               ),
@@ -218,6 +237,56 @@ class _InfoRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Same badge-icon-plus-label layout as [_InfoRow], but tappable - opens
+/// [onTap] (an external link) instead of just displaying a static value, so
+/// it ends with a chevron rather than a value string.
+class _LinkRow extends StatelessWidget {
+  const _LinkRow({required this.icon, required this.label, this.onTap});
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 30,
+              height: 30,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: badgeBackgroundFor(_accent, isDark),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon,
+                size: 15,
+                color: badgeIconColorFor(_accent, isDark),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(label, style: theme.textTheme.bodyMedium),
+            ),
+            Icon(
+              Icons.arrow_forward_ios,
+              size: 13,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ],
+        ),
       ),
     );
   }
