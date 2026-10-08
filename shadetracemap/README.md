@@ -1,6 +1,6 @@
 # shadetracemap
 
-A new Flutter project.
+The Flutter app for [ShadeTrace Map](https://apps.apple.com/us/app/shadetracemap/id6792345460), available now on the App Store.
 
 ## Getting Started
 
